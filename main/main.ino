@@ -19,7 +19,8 @@ WebServer server(80); // 端口80
 MPU6050 mpu6050(Wire);     // 初始化MPU6050对象
 
 /**
- * @brief 巡线传感器引脚定义
+ * @brief 巡线传感器引脚
+ 义
  */
 #define IO_X1 35
 #define IO_X2 34
@@ -56,8 +57,8 @@ MPU6050 mpu6050(Wire);     // 初始化MPU6050对象
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, -1); // 初始化OLED对象
 
 // WiFi连接凭据
-const char *sta_ssid = "iPhone 18 Pro MAX";     // WiFi名称
-const char *sta_password = "88888888";     // WiFi密码
+const char *sta_ssid = "park";     // WiFi名称
+const char *sta_password = "86534633";     // WiFi密码
 
 #define MOTOR_DISTANCE_TO_CENTER 0.1 // 电机到中心点的距离，用于运动学计算
 
@@ -136,7 +137,7 @@ float distance;   // 超声波测量距离
 
 void setup()
 {
-    Serial.begin(9600); // 初始化串口通信
+    Serial.begin(115200); // 初始化串口通信
     Wire.begin();       // 初始化I2C通信
 
     delay(500);         // 延时等待系统稳定
@@ -160,10 +161,10 @@ void setup()
     display.display(); // 显示Adafruit启动画面
     delay(2000);       // 延时2秒
 
-    // MPU6050初始化（当前被注释掉）
-    //    mpu6050.begin();
-    //    mpu6050.calcGyroOffsets(true);
-    //    Serial.println("mpu6050 done");
+    // MPU6050初始化
+    mpu6050.begin();
+    mpu6050.calcGyroOffsets(true);
+    Serial.println("mpu6050 done");
 
     display.clearDisplay(); // 清除显示屏
     
@@ -202,31 +203,31 @@ void setup()
 
 //网页模块
     server.on("/", HTTP_GET, []() {
-  String html = "<html><head><meta name='viewport' content='width=device-width, initial-scale=1'>";
-  html += "<style>button{width:100px;height:100px;margin:10px;font-size:20px;}</style></head>";
-  html += "<body><center>";
-  html += "<h1>ESP32 Car Control</h1>";
-  html += "<button onclick=\"control('B')\">W</button><br>";
-  html += "<button onclick=\"control('R')\">A</button>";
-  html += "<button onclick=\"control('L')\">D</button><br>";
-  html += "<button onclick=\"control('F')\">S</button>";
-  html += "<button onclick=\"control('S')\">STOP</button>";
-  html += "<script>function control(cmd){fetch('/control?cmd='+cmd);}</script>";
-  html += "</center></body></html>";
-  server.send(200, "text/html", html);
-});
+    String html = "<html><head><meta name='viewport' content='width=device-width, initial-scale=1'>";
+    html += "<style>button{width:100px;height:100px;margin:10px;font-size:20px;}</style></head>";
+    html += "<body><center>";
+    html += "<h1>ESP32 Car Control</h1>";
+    html += "<button onclick=\"control('B')\">W</button><br>";
+    html += "<button onclick=\"control('R')\">A</button>";
+    html += "<button onclick=\"control('L')\">D</button><br>";
+    html += "<button onclick=\"control('F')\">S</button>";
+    html += "<button onclick=\"control('S')\">STOP</button>";
+    html += "<script>function control(cmd){fetch('/control?cmd='+cmd);}</script>";
+    html += "</center></body></html>";
+    server.send(200, "text/html", html);
+    });
 
-server.on("/control", HTTP_GET, []() {
-  String cmd = server.arg("cmd");
-  if (cmd == "F") SetDirectionAndSpeed(100, 100, 100, 100);
-  else if (cmd == "B") SetDirectionAndSpeed(-100, -100, -100, -100);
-  else if (cmd == "L") SetDirectionAndSpeed(-100, 100, 100, -100);
-  else if (cmd == "R") SetDirectionAndSpeed(100, -100, -100, 100);
-  else if (cmd == "S") SetDirectionAndSpeed(0, 0, 0, 0);
-  server.send(200, "text/plain", "OK");
-});
+    server.on("/control", HTTP_GET, []() {
+    String cmd = server.arg("cmd");
+    if (cmd == "F") SetDirectionAndSpeed(100, 100, 100, 100);
+    else if (cmd == "B") SetDirectionAndSpeed(-100, -100, -100, -100);
+    else if (cmd == "L") SetDirectionAndSpeed(-100, 100, 100, -100);
+    else if (cmd == "R") SetDirectionAndSpeed(100, -100, -100, 100);
+    else if (cmd == "S") SetDirectionAndSpeed(0, 0, 0, 0);
+    server.send(200, "text/plain", "OK");
+    });
 
-server.begin();
+    server.begin();
     
     // LED闪烁表示初始化完成
     for(int i=0;i<3;i++){
@@ -434,7 +435,8 @@ int UltrasonicDistence(void)
 }
 
 /**
- * @brief 巡线传感器初始化
+ * @brief 
+巡线传感器初始化
  */
 void LineInit(void)
 {
