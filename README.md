@@ -29,4 +29,3 @@
 3. 探索 Gitee 上的优秀开源项目，请访问 [https://gitee.com/explore](https://gitee.com/explore)。
 4. GVP（Gitee 最有价值开源项目）是 Gitee 上的高质量开源项目评选栏目。
 5. Gitee 官方使用手册请访问 [https://gitee.com/help](https://gitee.com/help)。
-6. 想了解 Gitee 会员风采吗？请访问 [Gitee 封面人物](https://gitee.com/gitee-stars/) 页面。
