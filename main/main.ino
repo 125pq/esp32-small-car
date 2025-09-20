@@ -19,8 +19,7 @@ WebServer server(80); // 端口80
 MPU6050 mpu6050(Wire);     // 初始化MPU6050对象
 
 /**
- * @brief 巡线传感器引脚
- 义
+ * @brief 巡线传感器引脚定义
  */
 #define IO_X1 35
 #define IO_X2 34
@@ -60,7 +59,9 @@ Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, -1); // 初始化OL
 const char *sta_ssid = "park";     // WiFi名称
 const char *sta_password = "86534633";     // WiFi密码
 
-#define MOTOR_DISTANCE_TO_CENTER 0.1 // 电机到中心点的距离，用于运动学计算
+#define WheelBase 85  //轴距，用于运动学计算
+#define TrackWidth 80 //轮距，用于运动学计算
+//#define MOTOR_DISTANCE_TO_CENTER = 0.1 // 电机到中心点的距离，用于运动学计算
 
 /*--------遥控数据解析变量--------*/
 int index1;     // 字符串解析索引
@@ -135,6 +136,8 @@ uint8_t GetLine(void);
 long duration;    // 超声波持续时间
 float distance;   // 超声波测量距离
 
+void OLEDdisplay(String text); // 修复函数声明
+
 void setup()
 {
     Serial.begin(115200); // 初始化串口通信
@@ -173,13 +176,7 @@ void setup()
     /*------------------连接到WiFi网络-------------------*/
     WiFi.begin(sta_ssid, sta_password);
 
-    display.clearDisplay();
-    display.setTextSize(2);
-    display.setTextColor(SSD1306_WHITE);
-    display.setCursor(0, 0);
-    display.println(sta_password);
-    display.println(sta_ssid);
-    display.print("Connecting");
+    OLEDdisplay(sta_ssid, sta_password, "Connecting");
 
     // 等待WiFi连接
     while (WiFi.status() != WL_CONNECTED)
@@ -188,16 +185,8 @@ void setup()
         display.display(); // 更新显示
         delay(500);
     }
-    Serial.println("Connected");
-    Serial.print("IP Address:");
-    Serial.println(WiFi.localIP()); // 打印获取到的IP地址
 
-    display.clearDisplay();
-    display.setTextSize(2);
-    display.setTextColor(SSD1306_WHITE);
-    display.setCursor(0, 30);
-    display.println(WiFi.localIP()); // 显示IP地址
-    display.display();
+    OLEDdisplay(WiFi.localIP().toString()); // 显示IP地址
 
     Udp.begin(3000); // 启动UDP监听端口3000
 
@@ -207,10 +196,10 @@ void setup()
     html += "<style>button{width:100px;height:100px;margin:10px;font-size:20px;}</style></head>";
     html += "<body><center>";
     html += "<h1>ESP32 Car Control</h1>";
-    html += "<button onclick=\"control('B')\">W</button><br>";
-    html += "<button onclick=\"control('R')\">A</button>";
-    html += "<button onclick=\"control('L')\">D</button><br>";
-    html += "<button onclick=\"control('F')\">S</button>";
+    html += "<button onclick=\"control('F')\">W</button><br>";
+    html += "<button onclick=\"control('L')\">A</button>";
+    html += "<button onclick=\"control('R')\">D</button><br>";
+    html += "<button onclick=\"control('B')\">S</button>";
     html += "<button onclick=\"control('S')\">STOP</button>";
     html += "<script>function control(cmd){fetch('/control?cmd='+cmd);}</script>";
     html += "</center></body></html>";
@@ -245,14 +234,11 @@ void loop()
     server.handleClient(); // 处理Web请求
 
     static int err_cnt = 0; // 错误计数器
-    //delay(2); // 短延时
+    delay(2); // 短延时
+
+    SetSpeed(100,25,0);
     
-    /*display.clearDisplay();
-    display.setTextSize(2);
-    display.setTextColor(SSD1306_WHITE);
-    display.setCursor(0, 0);
-    display.println(GetLine()); //显示巡线传感器数据
-    display.display();*/
+    OLEDdisplay(GetLine());
 
     // 接收UDP数据包
     /*
@@ -356,14 +342,14 @@ void SetDirectionAndSpeed(int speed1, int speed2, int speed3, int speed4)
     if (speed1 < 0)
     {
         speed1 *= -1; // 取绝对值
-        digitalWrite(IO_M1IN1, HIGH);
-        digitalWrite(IO_M1IN2, LOW);
+        digitalWrite(IO_M1IN1, LOW);
+        digitalWrite(IO_M1IN2, HIGH);
         analogWrite(IO_M1PWM, speed1);
     }
     else
     {
-        digitalWrite(IO_M1IN1, LOW);
-        digitalWrite(IO_M1IN2, HIGH);
+        digitalWrite(IO_M1IN1, HIGH);
+        digitalWrite(IO_M1IN2, LOW);
         analogWrite(IO_M1PWM, speed1);
     }
     
@@ -371,14 +357,14 @@ void SetDirectionAndSpeed(int speed1, int speed2, int speed3, int speed4)
     if (speed2 < 0)
     {
         speed2 *= -1;
-        digitalWrite(IO_M2IN1, LOW);
-        digitalWrite(IO_M2IN2, HIGH);
+        digitalWrite(IO_M2IN1, HIGH);
+        digitalWrite(IO_M2IN2, LOW);
         analogWrite(IO_M2PWM, speed2);
     }
     else
     {
-        digitalWrite(IO_M2IN1, HIGH);
-        digitalWrite(IO_M2IN2, LOW);
+        digitalWrite(IO_M2IN1, LOW);
+        digitalWrite(IO_M2IN2, HIGH);
         analogWrite(IO_M2PWM, speed2);
     }
     
@@ -386,14 +372,14 @@ void SetDirectionAndSpeed(int speed1, int speed2, int speed3, int speed4)
     if (speed3 < 0)
     {
         speed3 *= -1;
-        digitalWrite(IO_M3IN1, HIGH);
-        digitalWrite(IO_M3IN2, LOW);
+        digitalWrite(IO_M3IN1, LOW);
+        digitalWrite(IO_M3IN2, HIGH);
         analogWrite(IO_M3PWM, speed3);
     }
     else
     {
-        digitalWrite(IO_M3IN1, LOW);
-        digitalWrite(IO_M3IN2, HIGH);
+        digitalWrite(IO_M3IN1, HIGH);
+        digitalWrite(IO_M3IN2, LOW);
         analogWrite(IO_M3PWM, speed3);
     }
     
@@ -401,14 +387,14 @@ void SetDirectionAndSpeed(int speed1, int speed2, int speed3, int speed4)
     if (speed4 < 0)
     {
         speed4 *= -1;
-        digitalWrite(IO_M4IN2, HIGH);
-        digitalWrite(IO_M4IN1, LOW);
+        digitalWrite(IO_M4IN2, LOW);
+        digitalWrite(IO_M4IN1, HIGH);
         analogWrite(IO_M4PWM, speed4);
     }
     else
     {
-        digitalWrite(IO_M4IN2, LOW);
-        digitalWrite(IO_M4IN1, HIGH);
+        digitalWrite(IO_M4IN2, HIGH);
+        digitalWrite(IO_M4IN1, LOW);
         analogWrite(IO_M4PWM, speed4);
     }
 }
@@ -435,8 +421,7 @@ int UltrasonicDistence(void)
 }
 
 /**
- * @brief 
-巡线传感器初始化
+ * @brief 巡线传感器初始化
  */
 void LineInit(void)
 {
@@ -472,11 +457,45 @@ void SetSpeed(float vx_set, float vy_set, float wz_set)
 {
     int speed1, speed2, speed3, speed4;
     // 根据运动学模型计算四个电机的速度
-    speed1 = vx_set - vy_set - MOTOR_DISTANCE_TO_CENTER * wz_set;
-    speed2 = vx_set + vy_set + MOTOR_DISTANCE_TO_CENTER * wz_set;
-    speed3 = vx_set + vy_set - MOTOR_DISTANCE_TO_CENTER * wz_set;
-    speed4 = vx_set - vy_set + MOTOR_DISTANCE_TO_CENTER * wz_set;
+    speed1 = vx_set + vy_set - (WheelBase/2 + TrackWidth/2) * wz_set;
+    speed2 = vx_set - vy_set - (WheelBase/2 + TrackWidth/2) * wz_set;
+    speed3 = vx_set + vy_set + (WheelBase/2 + TrackWidth/2) * wz_set;
+    speed4 = vx_set - vy_set + (WheelBase/2 + TrackWidth/2) * wz_set;
 
     // 设置电机速度
     SetDirectionAndSpeed(speed1, speed2, speed3, speed4);
+}
+
+/**
+ * @brief OLED显示函数
+ * @param text 要显示的文本
+ */
+void OLEDdisplay(String text){
+    display.clearDisplay();
+    display.setTextSize(2);
+    display.setTextColor(SSD1306_WHITE);
+    display.setCursor(0, 0);
+    display.println(text); // 显示文本
+    display.display();
+}
+
+void OLEDdisplay(String text1, String text2) {
+    display.clearDisplay();
+    display.setTextSize(2);
+    display.setTextColor(SSD1306_WHITE);
+    display.setCursor(0, 0);
+    display.println(text1);
+    display.println(text2);
+    display.display();
+}
+
+void OLEDdisplay(String text1, String text2, String text3) {
+    display.clearDisplay();
+    display.setTextSize(2);
+    display.setTextColor(SSD1306_WHITE);
+    display.setCursor(0, 0);
+    display.println(text1);
+    display.println(text2);
+    display.println(text3);
+    display.display();
 }
