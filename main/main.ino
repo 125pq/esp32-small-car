@@ -478,7 +478,6 @@ void OLEDdisplay(String text){
     display.println(text); // 显示文本
     display.display();
 }
-
 void OLEDdisplay(String text1, String text2) {
     display.clearDisplay();
     display.setTextSize(2);
@@ -488,7 +487,6 @@ void OLEDdisplay(String text1, String text2) {
     display.println(text2);
     display.display();
 }
-
 void OLEDdisplay(String text1, String text2, String text3) {
     display.clearDisplay();
     display.setTextSize(2);
