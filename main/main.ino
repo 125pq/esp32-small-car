@@ -338,66 +338,70 @@ void MotorInit(void)
  */
 void SetDirectionAndSpeed(int speed1, int speed2, int speed3, int speed4)
 {
-    // 电机1控制
+    // 统一逻辑：速度为正时，电机正转；速度为负时，电机反转
+    // 正转定义：从车前方看，左轮顺时针转，右轮逆时针转（确保前进方向一致）
+    
+    // 电机1控制（左前轮）
     if (speed1 < 0)
     {
         speed1 *= -1; // 取绝对值
-        digitalWrite(IO_M1IN1, LOW);
-        digitalWrite(IO_M1IN2, HIGH);
+        digitalWrite(IO_M1IN1, HIGH);  // 反转
+        digitalWrite(IO_M1IN2, LOW);
         analogWrite(IO_M1PWM, speed1);
     }
     else
     {
-        digitalWrite(IO_M1IN1, HIGH);
-        digitalWrite(IO_M1IN2, LOW);
+        digitalWrite(IO_M1IN1, LOW);   // 正转
+        digitalWrite(IO_M1IN2, HIGH);
         analogWrite(IO_M1PWM, speed1);
     }
     
-    // 电机2控制（注意：方向逻辑与其他电机不同）
+    // 电机2控制（右前轮）- 修正方向逻辑
     if (speed2 < 0)
     {
         speed2 *= -1;
-        digitalWrite(IO_M2IN1, HIGH);
+        digitalWrite(IO_M2IN1, HIGH);  // 反转（与电机1统一逻辑）
         digitalWrite(IO_M2IN2, LOW);
         analogWrite(IO_M2PWM, speed2);
     }
     else
     {
-        digitalWrite(IO_M2IN1, LOW);
+        digitalWrite(IO_M2IN1, LOW);   // 正转（与电机1统一逻辑）
         digitalWrite(IO_M2IN2, HIGH);
         analogWrite(IO_M2PWM, speed2);
     }
     
-    // 电机3控制
+    // 电机3控制（左后轮）
     if (speed3 < 0)
     {
         speed3 *= -1;
-        digitalWrite(IO_M3IN1, LOW);
-        digitalWrite(IO_M3IN2, HIGH);
-        analogWrite(IO_M3PWM, speed3);
-    }
-    else
-    {
-        digitalWrite(IO_M3IN1, HIGH);
+        digitalWrite(IO_M3IN1, HIGH);  // 反转
         digitalWrite(IO_M3IN2, LOW);
         analogWrite(IO_M3PWM, speed3);
     }
+    else
+    {
+        digitalWrite(IO_M3IN1, LOW);   // 正转
+        digitalWrite(IO_M3IN2, HIGH);
+        analogWrite(IO_M3PWM, speed3);
+    }
     
-    // 电机4控制（注意：方向逻辑与其他电机不同）
+    // 电机4控制（右后轮）- 修正方向逻辑
     if (speed4 < 0)
     {
         speed4 *= -1;
+        digitalWrite(IO_M4IN1, HIGH);  // 反转（与其他电机统一逻辑）
         digitalWrite(IO_M4IN2, LOW);
-        digitalWrite(IO_M4IN1, HIGH);
         analogWrite(IO_M4PWM, speed4);
     }
     else
     {
+        digitalWrite(IO_M4IN1, LOW);   // 正转（与其他电机统一逻辑）
         digitalWrite(IO_M4IN2, HIGH);
-        digitalWrite(IO_M4IN1, LOW);
         analogWrite(IO_M4PWM, speed4);
     }
 }
+    
 
 /**
  * @brief 超声波引脚初始化
