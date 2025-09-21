@@ -12,6 +12,7 @@
 #include <Adafruit_GFX.h>  // Adafruit图形库
 #include <Adafruit_SSD1306.h> // Adafruit OLED库
 #include <MPU6050_tockn.h> // MPU6050传感器库
+#include <PID_v1.h>        // PID控制库
 
 #include <WebServer.h>
 WebServer server(80); // 端口80
@@ -59,9 +60,30 @@ Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, -1); // 初始化OL
 const char *sta_ssid = "park";     // WiFi名称
 const char *sta_password = "86534633";     // WiFi密码
 
-#define WheelBase 85  //轴距，用于运动学计算
-#define TrackWidth 80 //轮距，用于运动学计算
-//#define MOTOR_DISTANCE_TO_CENTER = 0.1 // 电机到中心点的距离，用于运动学计算
+// 麦轮小车参数
+#define WHEEL_RADIUS 0.03  // 轮子半径 (米)
+#define LX 0.085            // 前后轮距的一半 (米)
+#define LY 0.08            // 左右轮距的一半 (米)
+
+// PID控制参数
+double angleSetpoint = 0, angleInput = 0, angleOutput = 0;
+double angleKp = 2, angleKi = 0.01, angleKd = 0;
+PID anglePID(&angleInput, &angleOutput, &angleSetpoint, angleKp, angleKi, angleKd, DIRECT);
+
+double speedSetpoint = 0, speedInput = 0, speedOutput = 0;
+double speedKp = 0.5, speedKi = 0.01, speedKd = 0.05;
+PID speedPID(&speedInput, &speedOutput, &speedSetpoint, speedKp, speedKi, speedKd, DIRECT);
+
+const float DEAD_ZONE = 0.1; // 死区阈值，小于此值的目标速度将被忽略
+
+// 状态变量
+unsigned long lastPIDTime = 0;
+float currentSpeed = 0;
+float filteredAccX = 0, filteredAccY = 0;
+float alpha = 0.8; // 低通滤波器系数
+
+// 目标运动状态
+float targetVx = 0, targetVy = 0, targetOmega = 0;
 
 /*--------遥控数据解析变量--------*/
 int index1;     // 字符串解析索引
@@ -132,11 +154,39 @@ void LineInit(void);
  */
 uint8_t GetLine(void);
 
+/**
+ * @brief 麦轮运动学模型
+ */
+void MecanumKinematics(float Vx, float Vy, float omega, float& w1, float& w2, float& w3, float& w4);
+
+/**
+ * @brief 麦轮PID控制
+ */
+void MecanumPIDControl();
+
+/**
+ * @brief 设置目标速度
+ */
+void SetTargetVelocity(float vx, float vy, float omega);
+
+/**
+ * @brief 显示实时信息
+ */
+void displayMecanumInfo();
+
 // 全局变量
 long duration;    // 超声波持续时间
 float distance;   // 超声波测量距离
 
-void OLEDdisplay(String text); // 修复函数声明
+// MPU6050数据滤波
+float filteredAngleZ = 0;
+float filteredGyroZ = 0;
+const float ANGLE_FILTER = 0.8; // 角度滤波器系数 (0-1, 越高越平滑)
+const float GYRO_FILTER = 0.9;  // 陀螺仪滤波器系数
+
+void OLEDdisplay(String text);
+void OLEDdisplay(String text1, String text2);
+void OLEDdisplay(String text1, String text2, String text3);
 
 void setup()
 {
@@ -162,12 +212,32 @@ void setup()
     }
     Serial.println("oled done");
     display.display(); // 显示Adafruit启动画面
-    delay(2000);       // 延时2秒
+
+    SetDirectionAndSpeed(100,0,0,0); // 测试电机
+    delay(200);                      // 延时0.2秒
+    SetDirectionAndSpeed(0,100,0,0);
+    delay(200);
+    SetDirectionAndSpeed(0,0,100,0);
+    delay(200);
+    SetDirectionAndSpeed(0,0,0,100);
+    delay(200);
+    SetDirectionAndSpeed(0,0,0,0);
 
     // MPU6050初始化
     mpu6050.begin();
     mpu6050.calcGyroOffsets(true);
     Serial.println("mpu6050 done");
+
+    // 初始化PID控制器
+    anglePID.SetMode(AUTOMATIC);
+    anglePID.SetOutputLimits(-100, 100);
+    anglePID.SetSampleTime(20);
+    
+    speedPID.SetMode(AUTOMATIC);
+    speedPID.SetOutputLimits(-255, 255);
+    speedPID.SetSampleTime(20);
+    
+    Serial.println("PID Controllers Initialized");
 
     display.clearDisplay(); // 清除显示屏
     
@@ -193,26 +263,80 @@ void setup()
 //网页模块
     server.on("/", HTTP_GET, []() {
     String html = "<html><head><meta name='viewport' content='width=device-width, initial-scale=1'>";
-    html += "<style>button{width:100px;height:100px;margin:10px;font-size:20px;}</style></head>";
-    html += "<body><center>";
-    html += "<h1>ESP32 Car Control</h1>";
-    html += "<button onclick=\"control('F')\">W</button><br>";
-    html += "<button onclick=\"control('L')\">A</button>";
-    html += "<button onclick=\"control('R')\">D</button><br>";
-    html += "<button onclick=\"control('B')\">S</button>";
-    html += "<button onclick=\"control('S')\">STOP</button>";
-    html += "<script>function control(cmd){fetch('/control?cmd='+cmd);}</script>";
-    html += "</center></body></html>";
+    html += "<style>body{font-family:Arial;text-align:center;}";
+    html += ".control{display:inline-block;margin:10px;}";
+    html += "button{width:80px;height:80px;margin:5px;font-size:16px;}";
+    html += ".slider{width:300px;margin:10px;}</style></head>";
+    html += "<body><h1>Mecanum Wheel Car Control</h1>";
+    
+    // 方向控制
+    html += "<div class='control'><h2>Direction</h2>";
+    html += "<button onclick=\"control('F')\">Forward</button><br>";
+    html += "<button onclick=\"control('L')\">Left</button>";
+    html += "<button onclick=\"control('R')\">Right</button><br>";
+    html += "<button onclick=\"control('B')\">Backward</button>";
+    html += "<button onclick=\"control('S')\">Stop</button></div>";
+    
+    // 斜向移动
+    html += "<div class='control'><h2>Diagonal</h2>";
+    html += "<button onclick=\"control('FL')\">Front-Left</button>";
+    html += "<button onclick=\"control('FR')\">Front-Right</button><br>";
+    html += "<button onclick=\"control('BL')\">Back-Left</button>";
+    html += "<button onclick=\"control('BR')\">Back-Right</button></div>";
+    
+    // 旋转控制
+    html += "<div class='control'><h2>Rotation</h2>";
+    html += "<button onclick=\"control('CL')\">Rotate Left</button><br>";
+    html += "<button onclick=\"control('CR')\">Rotate Right</button></div>";
+    
+    // 速度控制
+    html += "<div class='control'><h2>Speed</h2>";
+    html += "<input type='range' id='speed' class='slider' min='0' max='100' value='50' onchange='updateSpeed()'>";
+    html += "<p>Speed: <span id='speedValue'>50</span>%</p></div>";
+    
+    html += "<script>";
+    html += "function control(cmd){fetch('/control?cmd='+cmd);}";
+    html += "function updateSpeed(){";
+    html += "var speed = document.getElementById('speed').value;";
+    html += "document.getElementById('speedValue').innerHTML = speed;";
+    html += "fetch('/control?cmd=SP&val='+speed);}";
+    html += "</script></body></html>";
+    
     server.send(200, "text/html", html);
     });
 
     server.on("/control", HTTP_GET, []() {
     String cmd = server.arg("cmd");
-    if (cmd == "F") SetDirectionAndSpeed(100, 100, 100, 100);
-    else if (cmd == "B") SetDirectionAndSpeed(-100, -100, -100, -100);
-    else if (cmd == "L") SetDirectionAndSpeed(-100, 100, 100, -100);
-    else if (cmd == "R") SetDirectionAndSpeed(100, -100, -100, 100);
-    else if (cmd == "S") SetDirectionAndSpeed(0, 0, 0, 0);
+    String val = server.arg("val");
+    
+    float speed = 0.5; // 默认速度
+    
+    if (cmd == "SP") {
+      speed = val.toFloat() / 100.0;
+    } else if (cmd == "F") {
+      SetTargetVelocity(speed, 0, 0);
+    } else if (cmd == "B") {
+      SetTargetVelocity(-speed, 0, 0);
+    } else if (cmd == "L") {
+      SetTargetVelocity(0, speed, 0);
+    } else if (cmd == "R") {
+      SetTargetVelocity(0, -speed, 0);
+    } else if (cmd == "FL") {
+      SetTargetVelocity(speed, speed, 0);
+    } else if (cmd == "FR") {
+      SetTargetVelocity(speed, -speed, 0);
+    } else if (cmd == "BL") {
+      SetTargetVelocity(-speed, speed, 0);
+    } else if (cmd == "BR") {
+      SetTargetVelocity(-speed, -speed, 0);
+    } else if (cmd == "CL") {
+      SetTargetVelocity(0, 0, speed);
+    } else if (cmd == "CR") {
+      SetTargetVelocity(0, 0, -speed);
+    } else if (cmd == "S") {
+      SetTargetVelocity(0, 0, 0);
+    }
+    
     server.send(200, "text/plain", "OK");
     });
 
@@ -225,20 +349,17 @@ void setup()
         digitalWrite(2, LOW);
         delay(500);
         }
-    
-    
 }
 
 void loop()
 {
     server.handleClient(); // 处理Web请求
+    MecanumPIDControl();   // 执行PID控制
 
-    static int err_cnt = 0; // 错误计数器
     delay(2); // 短延时
 
-    SetSpeed(100,25,0);
+    displayMecanumInfo();
     
-    OLEDdisplay(GetLine());
 
     // 接收UDP数据包
     /*
@@ -275,31 +396,31 @@ void loop()
         // 根据按钮状态控制小车运动
         if (but_y.toInt()) // Y按钮按下 - 前进
         {
-            SetDirectionAndSpeed(100, 100, 100, 100);
+            SetTargetVelocity(0.5, 0, 0);
         }
         else if (but_a.toInt()) // A按钮按下 - 后退
         {
-            SetDirectionAndSpeed(-100, -100, -100, -100);
+            SetTargetVelocity(-0.5, 0, 0);
         }
         else if (but_x.toInt()) // X按钮按下 - 左转
         {
-            SetDirectionAndSpeed(-100, 100, 100, -100);
+            SetTargetVelocity(0, 0, 0.5);
         }
         else if (but_b.toInt()) // B按钮按下 - 右转
         {
-            SetDirectionAndSpeed(100, -100, -100, 100);
+            SetTargetVelocity(0, 0, -0.5);
         }
         else if (but_l.toInt()) // L按钮按下 - 左平移
         {
-            SetDirectionAndSpeed(-100, 100, -100, 100);
+            SetTargetVelocity(0, 0.5, 0);
         }
         else if (but_r.toInt()) // R按钮按下 - 右平移
         {
-            SetDirectionAndSpeed(100, -100, 100, -100);
+            SetTargetVelocity(0, -0.5, 0);
         }
         else // 无按钮按下 - 停止
         {
-            SetDirectionAndSpeed(0, 0, 0, 0);
+            SetTargetVelocity(0, 0, 0);
         }
     }
     else
@@ -310,7 +431,6 @@ void loop()
     }
     */
 }
-
 
 /**
  * @brief 电机引脚初始化
@@ -453,6 +573,7 @@ uint8_t GetLine(void)
  * @brief 根据速度向量设置小车运动
  * 使用运动学模型计算每个电机的速度
  */
+ /*
 void SetSpeed(float vx_set, float vy_set, float wz_set)
 {
     int speed1, speed2, speed3, speed4;
@@ -464,6 +585,115 @@ void SetSpeed(float vx_set, float vy_set, float wz_set)
 
     // 设置电机速度
     SetDirectionAndSpeed(speed1, speed2, speed3, speed4);
+}*/
+
+/**
+ * @brief 麦轮运动学模型
+ */
+void MecanumKinematics(float Vx, float Vy, float omega, float& w1, float& w2, float& w3, float& w4) {
+  // 麦轮运动学方程
+  w1 = (Vx - Vy - (LX + LY) * omega) / WHEEL_RADIUS;
+  w2 = (Vx + Vy + (LX + LY) * omega) / WHEEL_RADIUS;
+  w3 = (Vx + Vy - (LX + LY) * omega) / WHEEL_RADIUS;
+  w4 = (Vx - Vy + (LX + LY) * omega) / WHEEL_RADIUS;
+}
+
+/**
+ * @brief 麦轮PID控制
+ */
+void MecanumPIDControl() {
+  // 如果所有目标速度都接近零，则停止电机
+  if (fabs(targetVx) < DEAD_ZONE && fabs(targetVy) < DEAD_ZONE && fabs(targetOmega) < DEAD_ZONE) {
+    SetDirectionAndSpeed(0, 0, 0, 0);
+    return;
+  }
+  
+  // 更新MPU6050数据
+  mpu6050.update();
+  
+// 应用低通滤波器到MPU6050数据
+filteredAngleZ = ANGLE_FILTER * filteredAngleZ + (1 - ANGLE_FILTER) * mpu6050.getAngleZ();
+filteredGyroZ = GYRO_FILTER * filteredGyroZ + (1 - GYRO_FILTER) * mpu6050.getGyroZ();
+
+// 使用滤波后的数据
+float currentAngleZ = filteredAngleZ;
+float currentGyroZ = filteredGyroZ;
+  
+  // 角度PID控制（保持或转向到目标角度）
+  angleInput = currentAngleZ;
+  anglePID.Compute();
+  
+  // 应用PID修正到目标运动状态
+  float adjustedVx = targetVx;
+  float adjustedVy = targetVy;
+  float adjustedOmega = targetOmega;
+  
+  // 只有当目标旋转速度非零时才应用角度PID修正
+  /*if (fabs(targetOmega) > DEAD_ZONE) {
+    adjustedOmega += angleOutput;
+  }*/
+  
+  // 计算麦轮运动学
+  float w1, w2, w3, w4;
+  MecanumKinematics(adjustedVx, adjustedVy, adjustedOmega, w1, w2, w3, w4);
+  
+  // 限制电机速度在合理范围内
+  w1 = constrain(w1, -2.0, 2.0); // 限制理论速度在±2 m/s范围内
+  w2 = constrain(w2, -2.0, 2.0);
+  w3 = constrain(w3, -2.0, 2.0);
+  w4 = constrain(w4, -2.0, 2.0);
+  
+  // 将理论速度转换为PWM值（调整比例因子）
+  int pwm1 = constrain(w1 * 50, -200, 200); // 减小比例因子从10到50
+  int pwm2 = constrain(w2 * 50, -200, 200);
+  int pwm3 = constrain(w3 * 50, -200, 200);
+  int pwm4 = constrain(w4 * 50, -200, 200);
+  
+  // 设置电机速度
+  SetDirectionAndSpeed(pwm1, pwm2, pwm3, pwm4);
+}
+
+/**
+ * @brief 设置目标速度
+ */
+void SetTargetVelocity(float vx, float vy, float omega) {
+  // 应用死区处理
+  targetVx = (fabs(vx) < DEAD_ZONE) ? 0 : vx;
+  targetVy = (fabs(vy) < DEAD_ZONE) ? 0 : vy;
+  targetOmega = (fabs(omega) < DEAD_ZONE) ? 0 : omega;
+  
+  // 设置速度PID的目标值
+  speedSetpoint = sqrt(targetVx * targetVx + targetVy * targetVy);
+  
+  // 只有当目标速度非零时才更新角度设定值
+  if (speedSetpoint > DEAD_ZONE) {
+    mpu6050.update();
+    angleSetpoint = mpu6050.getAngleZ();
+  }
+}
+
+// 显示MPU6050数据和电机状态
+void displayMecanumInfo() {
+  static unsigned long lastDisplayTime = 0;
+  if (millis() - lastDisplayTime > 500) {
+    lastDisplayTime = millis();
+    
+    mpu6050.update();
+    
+    display.clearDisplay();
+    display.setTextSize(1);
+    display.setCursor(0, 0);
+    display.print("AngleZ: "); display.print(mpu6050.getAngleZ());
+    display.print(" GyroZ: "); display.println(mpu6050.getGyroZ());
+    display.print("T-Vx: "); display.print(targetVx, 2);
+    display.print(" T-Vy: "); display.println(targetVy, 2);
+    display.print("T-Omega: "); display.print(targetOmega, 2);
+    display.print(" A-Out: "); display.println(angleOutput, 2);
+    display.print("MPU-C: "); display.print(mpu6050.getAccX(), 2);
+    display.print(","); display.print(mpu6050.getAccY(), 2);
+    display.print(","); display.println(mpu6050.getAccZ(), 2);
+    display.display();
+  }
 }
 
 /**
@@ -478,6 +708,7 @@ void OLEDdisplay(String text){
     display.println(text); // 显示文本
     display.display();
 }
+
 void OLEDdisplay(String text1, String text2) {
     display.clearDisplay();
     display.setTextSize(2);
@@ -487,6 +718,7 @@ void OLEDdisplay(String text1, String text2) {
     display.println(text2);
     display.display();
 }
+
 void OLEDdisplay(String text1, String text2, String text3) {
     display.clearDisplay();
     display.setTextSize(2);
