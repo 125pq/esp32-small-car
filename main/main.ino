@@ -22,6 +22,7 @@
 #include "MecanumControl.h"
 #include "WebControl.h"
 #include "LineFollower.h"
+#include "SerialCommander.h"
 
 // * 全局对象
 MPU6050 mpu6050(Wire);           // MPU6050陀螺仪传感器
@@ -32,6 +33,7 @@ Display display;                 // OLED显示屏
 MecanumControl mecanumControl(motor, mpu6050);  // 麦轮运动控制器
 WebControl webControl(mecanumControl);          // Web服务器控制器
 LineFollower lineFollower(lineTracker, mecanumControl); // 巡线控制器
+SerialCommander serialCommander(mecanumControl); // 串口指令控制器
 
 /**
  * @brief 初始化函数
@@ -99,6 +101,9 @@ void setup() {
  * @brief 主循环函数
  */
 void loop() {
+    // ! 处理串口命令 (调试用 PID 参数调整)
+    serialCommander.update();
+
     // ! 处理Web客户端请求
     webControl.handleClient();
 
