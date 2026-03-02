@@ -21,6 +21,7 @@
 #include "Display.h"
 #include "MecanumControl.h"
 #include "WebControl.h"
+#include "LineFollower.h"
 
 // * 全局对象
 MPU6050 mpu6050(Wire);           // MPU6050陀螺仪传感器
@@ -30,6 +31,7 @@ LineTracker lineTracker;         // 巡线传感器
 Display display;                 // OLED显示屏
 MecanumControl mecanumControl(motor, mpu6050);  // 麦轮运动控制器
 WebControl webControl(mecanumControl);          // Web服务器控制器
+LineFollower lineFollower(lineTracker, mecanumControl); // 巡线控制器
 
 /**
  * @brief 初始化函数
@@ -74,6 +76,7 @@ void setup() {
     // * 初始化WiFi和Web服务器
     display.show(WIFI_SSID, WIFI_PASSWORD, "Connecting...");
     if (webControl.init()) {
+        webControl.setLineFollower(&lineFollower);
         display.show(webControl.getIPAddress());
         Serial.println("WebControl initialized");
     } else {
@@ -98,6 +101,9 @@ void setup() {
 void loop() {
     // ! 处理Web客户端请求
     webControl.handleClient();
+
+    // ! 寻线控制
+    lineFollower.update();
 
     // ! 执行麦轮PID控制
     mecanumControl.update();

@@ -13,6 +13,7 @@
 #include <WebServer.h>
 #include "Config.h"
 #include "MecanumControl.h"
+#include "LineFollower.h"
 
 /**
  * @class WebControl
@@ -49,8 +50,14 @@ public:
      */
     String getIPAddress();
 
+    /**
+     * @brief 设置LineFollower对象
+     */
+    void setLineFollower(LineFollower* lf) { lineFollower = lf; }
+
 private:
     MecanumControl& mecanumControl;
+    LineFollower* lineFollower = nullptr;
     WebServer* server;
 
     /**

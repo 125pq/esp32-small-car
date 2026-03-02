@@ -94,6 +94,18 @@ void WebControl::handleControl() {
         mecanumControl.setTargetVelocity(0, 0, -speed);
     } else if (cmd == "S") {
         mecanumControl.setTargetVelocity(0, 0, 0);
+        if (lineFollower != nullptr) {
+            lineFollower->stop();
+        }
+    } else if (cmd == "LF") {
+        if (lineFollower != nullptr) {
+            String val = server->arg("val");
+            if (val == "1") {
+                lineFollower->start();
+            } else {
+                lineFollower->stop();
+            }
+        }
     }
     
     server->send(200, "text/plain", "OK");
