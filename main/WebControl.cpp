@@ -68,30 +68,32 @@ void WebControl::handleControl() {
     String cmd = server->arg("cmd");
     String val = server->arg("val");
     
-    float speed = 0.5; // 默认速度
+    // speed variable replaced by member variable currentSpeed
     
     if (cmd == "SP") {
-        speed = val.toFloat() / 100.0;
+        currentSpeed = val.toFloat() / 100.0;
+        // Optional: Update current motion if moving?
+        // For now, just store the speed.
     } else if (cmd == "F") {
-        mecanumControl.setTargetVelocity(speed, 0, 0);
+        mecanumControl.setTargetVelocity(currentSpeed, 0, 0);
     } else if (cmd == "B") {
-        mecanumControl.setTargetVelocity(-speed, 0, 0);
+        mecanumControl.setTargetVelocity(-currentSpeed, 0, 0);
     } else if (cmd == "L") {
-        mecanumControl.setTargetVelocity(0, speed, 0);
+        mecanumControl.setTargetVelocity(0, currentSpeed, 0);
     } else if (cmd == "R") {
-        mecanumControl.setTargetVelocity(0, -speed, 0);
+        mecanumControl.setTargetVelocity(0, -currentSpeed, 0);
     } else if (cmd == "FL") {
-        mecanumControl.setTargetVelocity(speed, speed, 0);
+        mecanumControl.setTargetVelocity(currentSpeed, currentSpeed, 0);
     } else if (cmd == "FR") {
-        mecanumControl.setTargetVelocity(speed, -speed, 0);
+        mecanumControl.setTargetVelocity(currentSpeed, -currentSpeed, 0);
     } else if (cmd == "BL") {
-        mecanumControl.setTargetVelocity(-speed, speed, 0);
+        mecanumControl.setTargetVelocity(-currentSpeed, currentSpeed, 0);
     } else if (cmd == "BR") {
-        mecanumControl.setTargetVelocity(-speed, -speed, 0);
+        mecanumControl.setTargetVelocity(-currentSpeed, -currentSpeed, 0);
     } else if (cmd == "CL") {
-        mecanumControl.setTargetVelocity(0, 0, speed);
+        mecanumControl.setTargetVelocity(0, 0, currentSpeed);
     } else if (cmd == "CR") {
-        mecanumControl.setTargetVelocity(0, 0, -speed);
+        mecanumControl.setTargetVelocity(0, 0, -currentSpeed);
     } else if (cmd == "S") {
         mecanumControl.setTargetVelocity(0, 0, 0);
         if (lineFollower != nullptr) {
@@ -140,9 +142,10 @@ String WebControl::generateHTML() {
     html += "<button onclick=\"control('CR')\">Rotate Right</button></div>";
     
     // 速度控制
+    int currentSpeedInt = (int)(currentSpeed * 100);
     html += "<div class='control'><h2>Speed</h2>";
-    html += "<input type='range' id='speed' class='slider' min='0' max='100' value='50' onchange='updateSpeed()'>";
-    html += "<p>Speed: <span id='speedValue'>50</span>%</p></div>";
+    html += "<input type='range' id='speed' class='slider' min='0' max='100' value='" + String(currentSpeedInt) + "' onchange='updateSpeed()'>";
+    html += "<p>Speed: <span id='speedValue'>" + String(currentSpeedInt) + "</span>%</p></div>";
     
     html += "<script>";
     html += "function control(cmd){fetch('/control?cmd='+cmd);}";

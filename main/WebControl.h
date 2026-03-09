@@ -75,6 +75,8 @@ private:
      * @return HTML字符串
      */
     String generateHTML();
+
+    float currentSpeed = 0.5; // 当前速度设定
 };
 
 #endif // WEBCONTROL_H
