@@ -36,6 +36,11 @@ void LineFollower::stop() {
     Serial.println("Line Follower Stopped");
 }
 
+void LineFollower::setSpeed(float speed) {
+    baseSpeed = speed;
+    turnSpeed = speed; 
+}
+
 bool LineFollower::isRunning() {
     return running;
 }

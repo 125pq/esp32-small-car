@@ -31,6 +31,12 @@ public:
     void stop();
 
     /**
+     * @brief 设置巡线速度
+     * @param speed 速度值 (0.0 - 1.0)
+     */
+    void setSpeed(float speed);
+
+    /**
      * @brief 更新寻线状态（在loop中调用）
      */
     void update();

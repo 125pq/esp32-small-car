@@ -74,6 +74,9 @@ void WebControl::handleControl() {
         currentSpeed = val.toFloat() / 100.0;
         // Optional: Update current motion if moving?
         // For now, just store the speed.
+        if (lineFollower != nullptr) {
+            lineFollower->setSpeed(currentSpeed);
+        }
     } else if (cmd == "F") {
         mecanumControl.setTargetVelocity(currentSpeed, 0, 0);
     } else if (cmd == "B") {
@@ -103,6 +106,7 @@ void WebControl::handleControl() {
         if (lineFollower != nullptr) {
             String val = server->arg("val");
             if (val == "1") {
+                lineFollower->setSpeed(currentSpeed);
                 lineFollower->start();
             } else {
                 lineFollower->stop();
@@ -141,6 +145,11 @@ String WebControl::generateHTML() {
     html += "<button onclick=\"control('CL')\">Rotate Left</button><br>";
     html += "<button onclick=\"control('CR')\">Rotate Right</button></div>";
     
+    // 巡线控制
+    html += "<div class='control'><h2>Line Follow</h2>";
+    html += "<button onclick=\"controlVal('LF', '1')\">Start</button>";
+    html += "<button onclick=\"controlVal('LF', '0')\">Stop</button></div>";
+
     // 速度控制
     int currentSpeedInt = (int)(currentSpeed * 100);
     html += "<div class='control'><h2>Speed</h2>";
@@ -149,6 +158,7 @@ String WebControl::generateHTML() {
     
     html += "<script>";
     html += "function control(cmd){fetch('/control?cmd='+cmd);}";
+    html += "function controlVal(cmd, val){fetch('/control?cmd='+cmd+'&val='+val);}";
     html += "function updateSpeed(){";
     html += "var speed = document.getElementById('speed').value;";
     html += "document.getElementById('speedValue').innerHTML = speed;";
