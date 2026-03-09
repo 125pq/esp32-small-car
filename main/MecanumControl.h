@@ -52,50 +52,8 @@ public:
 
     /**
      * @brief 获取PID输出
-     * @return 角度PID控制器的输出值
      */
-    double getAngleOutput();
-    
-    /**
-     * @brief 获取角度输入值（当前角度）
-     * @return 滤波后的角度值
-     */
-    double getAngleInput();
-    
-    /**
-     * @brief 获取角度设定值
-     * @return 目标角度值
-     */
-    double getAngleSetpoint();
-
-    /**
-     * @brief 设置角度PID参数
-     * @param Kp 比例系数
-     * @param Ki 积分系数
-     * @param Kd 微分系数
-     */
-    void setAnglePIDTunings(double Kp, double Ki, double Kd);
-
-    /**
-     * @brief 获取角度PID参数
-     * @param Kp 引用传递，返回比例系数
-     * @param Ki 引用传递，返回积分系数
-     * @param Kd 引用传递，返回微分系数
-     */
-    void getAnglePIDTunings(double& Kp, double& Ki, double& Kd);
-
-    /**
-     * @brief 设置角度PID参数
-     * @param Kp 比例系数
-     * @param Ki 积分系数
-     * @param Kd 微分系数
-     */
-    void setAnglePIDTunings(double Kp, double Ki, double Kd);
-
-    /**
-     * @brief 获取角度PID参数
-     */
-    void getAnglePIDTunings(double& Kp, double& Ki, double& Kd);
+    float getAngleOutput();
 
 private:
     Motor& motor;
@@ -110,7 +68,6 @@ private:
     double angleSetpoint, angleInput, angleOutput;
     PID* anglePID;
     
-    // 速度PID目前未启用，先保留结构
     double speedSetpoint, speedInput, speedOutput;
     PID* speedPID;
 

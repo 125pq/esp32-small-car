@@ -78,58 +78,23 @@ void MecanumControl::update() {
     float adjustedVx = targetVx;
     float adjustedVy = targetVy;
     float adjustedOmega = targetOmega;
-
-    // 航向锁定逻辑：
-    // 如果用户没有要求旋转 (targetOmega == 0)，则启用PID来保持角度
-    if (fabs(targetOmega) < DEAD_ZONE) {
-        // 计算PID输出
-        angleInput = filteredAngleZ;
-        anglePID->Compute();
-        
-        // 叠加PID输出到旋转速度上，用于修正偏差
-        // 注意方向：如果偏移为正（向左偏），需要向右转（负Omega）修正
-        // PID库通常计算 Output = Kp * error + ...
-        // 如果 Setpoint = 0, Input = 10 (偏左10度), Error = -10
-        // Output 会是负数，正好对应向右转，符合预期
-        // 但需要注意 PID 模式是 DIRECT 还是 REVERSE
-        adjustedOmega += angleOutput / 100.0; // 将PID输出缩放到弧度/秒 (假设PID输出范围是-100~100)
-    } else {
-        // 如果用户正在手动旋转，则更新设定值为当前角度，以便停止旋转后锁定新方向
-        angleSetpoint = filteredAngleZ;
-        // 重置PID积分项，防止积累
-        // 此PID库没有直接reset积分的函数，可以通过重新初始化或设置为MANUAL再切回AUTOMATIC实现，
-        // 或者简单地在此处不调用Compute，让积分项保持（但可能不理想）
-        // 简单做法：跟随
-        angleInput = filteredAngleZ;
-    }
     
     // 计算麦轮运动学
-    // 修正：运动学方程中 omega 单位通常是 rad/s。
-    // 如果 adjustedOmega 过大，可能导致电机饱和。
-    float w1_rad, w2_rad, w3_rad, w4_rad;
-    mecanumKinematics(adjustedVx, adjustedVy, adjustedOmega, w1_rad, w2_rad, w3_rad, w4_rad);
+    float w1, w2, w3, w4;
+    mecanumKinematics(adjustedVx, adjustedVy, adjustedOmega, w1, w2, w3, w4);
     
     // 限制电机速度在合理范围内
-    // 假设最大物理转速约为 20 rad/s (待定，根据电机参数调整)
-    float max_w = 20.0; 
-    w1_rad = constrain(w1_rad, -max_w, max_w);
-    w2_rad = constrain(w2_rad, -max_w, max_w);
-    w3_rad = constrain(w3_rad, -max_w, max_w);
-    w4_rad = constrain(w4_rad, -max_w, max_w);
+    w1 = constrain(w1, -2.0, 2.0);
+    w2 = constrain(w2, -2.0, 2.0);
+    w3 = constrain(w3, -2.0, 2.0);
+    w4 = constrain(w4, -2.0, 2.0);
     
-    // 将理论速度转换为PWM值 (0-255)
-    // 假设 20 rad/s 对应 PWM 255
-    // 简单映射：PWM = w * (255 / max_w)
-    float rad_to_pwm = 255.0 / max_w;
+    // 将理论速度转换为PWM值
+    int pwm1 = constrain(w1 * 50, -200, 200);
+    int pwm2 = constrain(w2 * 50, -200, 200);
+    int pwm3 = constrain(w3 * 50, -200, 200);
+    int pwm4 = constrain(w4 * 50, -200, 200);
     
-    int pwm1 = (int)(w1_rad * rad_to_pwm);
-    int pwm2 = (int)(w2_rad * rad_to_pwm);
-    int pwm3 = (int)(w3_rad * rad_to_pwm);
-    int pwm4 = (int)(w4_rad * rad_to_pwm);
-    
-    // 加上死区处理，如果PWM太小电机不动
-    // (在Motor类里处理可能更好，但这里可以先做简单处理)
-
     // 设置电机速度
     motor.setSpeed(pwm1, pwm2, pwm3, pwm4);
 }
@@ -150,23 +115,5 @@ void MecanumControl::getTargetVelocity(float& vx, float& vy, float& omega) {
 }
 
 float MecanumControl::getAngleOutput() {
-    return (float)angleOutput;
-}
-
-double MecanumControl::getAngleInput() {
-    return angleInput;
-}
-
-double MecanumControl::getAngleSetpoint() {
-    return angleSetpoint;
-}
-
-void MecanumControl::setAnglePIDTunings(double Kp, double Ki, double Kd) {
-    anglePID->SetTunings(Kp, Ki, Kd);
-}
-
-void MecanumControl::getAnglePIDTunings(double& Kp, double& Ki, double& Kd) {
-    Kp = anglePID->GetKp();
-    Ki = anglePID->GetKi();
-    Kd = anglePID->GetKd();
+    return angleOutput;
 }
