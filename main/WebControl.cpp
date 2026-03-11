@@ -55,10 +55,6 @@ bool WebControl::isConnected() {
     return WiFi.status() == WL_CONNECTED;
 }
 
-bool WebControl::hasClientConnected() {
-    return clientConnected;
-}
-
 String WebControl::getIPAddress() {
     return WiFi.localIP().toString();
 }
@@ -80,6 +76,9 @@ void WebControl::handleControl() {
         // For now, just store the speed.
         if (lineFollower != nullptr) {
             lineFollower->setSpeed(currentSpeed);
+        }
+        if (obstacleAvoidance != nullptr) {
+            obstacleAvoidance->setSpeed(currentSpeed);
         }
     } else if (cmd == "F") {
         mecanumControl.setTargetVelocity(currentSpeed * MAX_LINEAR_SPEED, 0, 0);
@@ -106,14 +105,29 @@ void WebControl::handleControl() {
         if (lineFollower != nullptr) {
             lineFollower->stop();
         }
+        if (obstacleAvoidance != nullptr) {
+            obstacleAvoidance->stop();
+        }
     } else if (cmd == "LF") {
         if (lineFollower != nullptr) {
             String val = server->arg("val");
             if (val == "1") {
+                if (obstacleAvoidance != nullptr) obstacleAvoidance->stop();
                 lineFollower->setSpeed(currentSpeed);
                 lineFollower->start();
             } else {
                 lineFollower->stop();
+            }
+        }
+    } else if (cmd == "OA") {
+        if (obstacleAvoidance != nullptr) {
+            String val = server->arg("val");
+            if (val == "1") {
+                if (lineFollower != nullptr) lineFollower->stop();
+                obstacleAvoidance->setSpeed(currentSpeed);
+                obstacleAvoidance->start();
+            } else {
+                obstacleAvoidance->stop();
             }
         }
     }
@@ -151,7 +165,12 @@ String WebControl::generateHTML() {
     
     // 巡线控制
     html += "<div class='control'><h2>Line Follow</h2>";
-    html += "<button onclick=\"controlVal('LF', '1')\">Start</button>";
+    htm避障控制
+    html += "<div class='control'><h2>Obstacle Avoidance</h2>";
+    html += "<button onclick=\"controlVal('OA', '1')\">Start</button>";
+    html += "<button onclick=\"controlVal('OA', '0')\">Stop</button></div>";
+
+    // l += "<button onclick=\"controlVal('LF', '1')\">Start</button>";
     html += "<button onclick=\"controlVal('LF', '0')\">Stop</button></div>";
 
     // 速度控制

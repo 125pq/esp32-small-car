@@ -22,6 +22,7 @@
 #include "MecanumControl.h"
 #include "WebControl.h"
 #include "LineFollower.h"
+#include "ObstacleAvoidance.h"
 
 // * 全局对象
 MPU6050 mpu6050(Wire);           // MPU6050陀螺仪传感器
@@ -32,6 +33,7 @@ Display display;                 // OLED显示屏
 MecanumControl mecanumControl(motor, mpu6050);  // 麦轮运动控制器
 WebControl webControl(mecanumControl);          // Web服务器控制器
 LineFollower lineFollower(lineTracker, mecanumControl); // 巡线控制器
+ObstacleAvoidance obstacleAvoidance(ultrasonic, mecanumControl); // 避障控制器
 
 /**
  * @brief 初始化函数
@@ -71,6 +73,7 @@ void setup() {
     display.show(WIFI_SSID, WIFI_PASSWORD, "Connecting...");
     if (webControl.init()) {
         webControl.setLineFollower(&lineFollower);
+        webControl.setObstacleAvoidance(&obstacleAvoidance);
         display.show(webControl.getIPAddress());
     } else {
         display.show("WiFi Failed!");
@@ -95,7 +98,10 @@ void loop() {
 
     // ! 寻线控制
     lineFollower.update();
+避障控制
+    obstacleAvoidance.update();
 
+    // ! 
     // ! 执行麦轮PID控制
     mecanumControl.update();
 
