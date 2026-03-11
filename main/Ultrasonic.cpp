@@ -20,7 +20,9 @@ long Ultrasonic::getRawPulse() {
     digitalWrite(trigPin, HIGH);
     delayMicroseconds(10);
     digitalWrite(trigPin, LOW);
-    return pulseIn(echoPin, HIGH);
+    // 使用 20ms 超时 (20000 微秒)，对应约 3.4米 距离
+    // 如果超时返回 0，避免程序卡死
+    return pulseIn(echoPin, HIGH, 20000);
 }
 
 float Ultrasonic::getDistance() {

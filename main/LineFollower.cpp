@@ -18,8 +18,8 @@
 
 LineFollower::LineFollower(LineTracker& tracker, MecanumControl& control) 
     : lineTracker(tracker), mecanumControl(control), running(false) {
-    baseSpeed = 0.5;   // 基础前进速度
-    turnSpeed = 0.5;   // 转向速度
+    baseSpeed = 0.5 * MAX_LINEAR_SPEED;   // 基础前进速度
+    turnSpeed = 0.5 * MAX_ROTATION_SPEED;   // 转向速度
     lastLineTime = 0;
     isLost = false;
 }

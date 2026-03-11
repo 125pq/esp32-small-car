@@ -98,7 +98,7 @@ void loop() {
 
     // ! 寻线控制
     lineFollower.update();
-避障控制
+    // ! 避障控制
     obstacleAvoidance.update();
 
     // ! 

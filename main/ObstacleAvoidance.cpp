@@ -6,9 +6,10 @@
  */
 
 #include "ObstacleAvoidance.h"
+#include "Config.h"
 
 // 避障距离阈值 (cm)
-#define OBSTACLE_DISTANCE 20.0
+#define OBSTACLE_DISTANCE 5.0
 // 后退持续时间 (ms)
 #define BACKWARD_DURATION 500
 // 转向持续时间 (ms)
@@ -16,8 +17,8 @@
 
 ObstacleAvoidance::ObstacleAvoidance(Ultrasonic& us, MecanumControl& control) 
     : ultrasonic(us), mecanumControl(control), running(false) {
-    baseSpeed = 0.4;   // 默认避障速度较慢，安全第一
-    turnSpeed = 0.5;
+    baseSpeed = 0.4 * MAX_LINEAR_SPEED;   // 默认避障速度较慢，安全第一
+    turnSpeed = 0.5 * MAX_ROTATION_SPEED;
     currentState = FORWARD;
     lastMeasureTime = 0;
 }
@@ -36,8 +37,8 @@ void ObstacleAvoidance::stop() {
 }
 
 void ObstacleAvoidance::setSpeed(float speed) {
-    baseSpeed = speed;
-    turnSpeed = speed;
+    baseSpeed = speed * MAX_LINEAR_SPEED;
+    turnSpeed = speed * MAX_ROTATION_SPEED;
 }
 
 bool ObstacleAvoidance::isRunning() {
@@ -48,8 +49,15 @@ void ObstacleAvoidance::update() {
     if (!running) return;
 
     // 定期测量距离 (每100ms)
+    // 如果没有返回 (超时)，则距离保持不变
     if (millis() - lastMeasureTime > 100) {
-        currentDistance = ultrasonic.getDistance();
+        float d = ultrasonic.getDistance();
+        if (d > 0.0) {
+            currentDistance = d;
+        } else {
+             // 0 表示超时或错误，通常意味着没有障碍物或障碍物很远
+             currentDistance = 400.0; // 设置为一个大值
+        }
         lastMeasureTime = millis();
         // Serial.print("Distance: ");
         // Serial.println(currentDistance);

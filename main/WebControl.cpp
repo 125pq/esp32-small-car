@@ -70,6 +70,9 @@ void WebControl::handleControl() {
     
     // speed variable replaced by member variable currentSpeed
     
+    // Debug output
+    // Serial.print("CMD: "); Serial.println(cmd);
+    
     if (cmd == "SP") {
         currentSpeed = val.toFloat() / 100.0;
         // Optional: Update current motion if moving?
@@ -165,7 +168,7 @@ String WebControl::generateHTML() {
     
     // 巡线控制
     html += "<div class='control'><h2>Line Follow</h2>";
-    htm避障控制
+    // 避障控制
     html += "<div class='control'><h2>Obstacle Avoidance</h2>";
     html += "<button onclick=\"controlVal('OA', '1')\">Start</button>";
     html += "<button onclick=\"controlVal('OA', '0')\">Stop</button></div>";
