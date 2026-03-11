@@ -80,25 +80,25 @@ void WebControl::handleControl() {
             lineFollower->setSpeed(currentSpeed);
         }
     } else if (cmd == "F") {
-        mecanumControl.setTargetVelocity(currentSpeed * MAX_LINEAR_SPEED, 0, 0);
+        mecanumControl.setTargetVelocity(currentSpeed, 0, 0);
     } else if (cmd == "B") {
-        mecanumControl.setTargetVelocity(-currentSpeed * MAX_LINEAR_SPEED, 0, 0);
+        mecanumControl.setTargetVelocity(-currentSpeed, 0, 0);
     } else if (cmd == "L") {
-        mecanumControl.setTargetVelocity(0, currentSpeed * MAX_LINEAR_SPEED, 0);
+        mecanumControl.setTargetVelocity(0, currentSpeed, 0);
     } else if (cmd == "R") {
-        mecanumControl.setTargetVelocity(0, -currentSpeed * MAX_LINEAR_SPEED, 0);
+        mecanumControl.setTargetVelocity(0, -currentSpeed, 0);
     } else if (cmd == "FL") {
-        mecanumControl.setTargetVelocity(currentSpeed * MAX_LINEAR_SPEED, currentSpeed * MAX_LINEAR_SPEED, 0);
+        mecanumControl.setTargetVelocity(currentSpeed, currentSpeed, 0);
     } else if (cmd == "FR") {
-        mecanumControl.setTargetVelocity(currentSpeed * MAX_LINEAR_SPEED, -currentSpeed * MAX_LINEAR_SPEED, 0);
+        mecanumControl.setTargetVelocity(currentSpeed, -currentSpeed, 0);
     } else if (cmd == "BL") {
-        mecanumControl.setTargetVelocity(-currentSpeed * MAX_LINEAR_SPEED, currentSpeed * MAX_LINEAR_SPEED, 0);
+        mecanumControl.setTargetVelocity(-currentSpeed, currentSpeed, 0);
     } else if (cmd == "BR") {
-        mecanumControl.setTargetVelocity(-currentSpeed * MAX_LINEAR_SPEED, -currentSpeed * MAX_LINEAR_SPEED, 0);
+        mecanumControl.setTargetVelocity(-currentSpeed, -currentSpeed, 0);
     } else if (cmd == "CL") {
-        mecanumControl.setTargetVelocity(0, 0, currentSpeed * MAX_ROTATION_SPEED);
+        mecanumControl.setTargetVelocity(0, 0, currentSpeed);
     } else if (cmd == "CR") {
-        mecanumControl.setTargetVelocity(0, 0, -currentSpeed * MAX_ROTATION_SPEED);
+        mecanumControl.setTargetVelocity(0, 0, -currentSpeed);
     } else if (cmd == "S") {
         mecanumControl.setTargetVelocity(0, 0, 0);
         if (lineFollower != nullptr) {

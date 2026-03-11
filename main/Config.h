@@ -74,10 +74,7 @@
 #define SPEED_KI 0.01      // 速度PID积分系数
 #define SPEED_KD 0.05      // 速度PID微分系数
 
-#define DEAD_ZONE 0.01      // 死区阈值 (m/s)
-
-#define MAX_LINEAR_SPEED 0.15 // 最大直线速度限制 (m/s)
-#define MAX_ROTATION_SPEED 1.0 // 最大旋转速度限制 (rad/s)
+#define DEAD_ZONE 0.1      // 死区阈值
 
 /**
  * @brief 滤波器参数

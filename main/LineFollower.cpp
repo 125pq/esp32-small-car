@@ -37,8 +37,8 @@ void LineFollower::stop() {
 }
 
 void LineFollower::setSpeed(float speed) {
-    baseSpeed = speed * MAX_LINEAR_SPEED;
-    turnSpeed = speed * MAX_ROTATION_SPEED; 
+    baseSpeed = speed;
+    turnSpeed = speed; 
 }
 
 bool LineFollower::isRunning() {
