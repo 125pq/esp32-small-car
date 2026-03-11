@@ -6,6 +6,7 @@
  */
 
 #include "LineFollower.h"
+#include "Config.h"
 
 // 假设传感器布局从左到右为 S1, S2, S3, S4
 // S1: 35 (Bit 1), S2: 34 (Bit 0), S3: 39 (Bit 2), S4: 36 (Bit 3)
@@ -37,8 +38,8 @@ void LineFollower::stop() {
 }
 
 void LineFollower::setSpeed(float speed) {
-    baseSpeed = speed;
-    turnSpeed = speed; 
+    baseSpeed = speed * MAX_LINEAR_SPEED;
+    turnSpeed = speed * MAX_ROTATION_SPEED; 
 }
 
 bool LineFollower::isRunning() {

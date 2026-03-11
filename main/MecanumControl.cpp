@@ -84,16 +84,16 @@ void MecanumControl::update() {
     mecanumKinematics(adjustedVx, adjustedVy, adjustedOmega, w1, w2, w3, w4);
     
     // 限制电机速度在合理范围内
-    w1 = constrain(w1, -2.0, 2.0);
-    w2 = constrain(w2, -2.0, 2.0);
-    w3 = constrain(w3, -2.0, 2.0);
-    w4 = constrain(w4, -2.0, 2.0);
+    w1 = constrain(w1, -30.0, 30.0);
+    w2 = constrain(w2, -30.0, 30.0);
+    w3 = constrain(w3, -30.0, 30.0);
+    w4 = constrain(w4, -30.0, 30.0);
     
     // 将理论速度转换为PWM值
-    int pwm1 = constrain(w1 * 50, -200, 200);
-    int pwm2 = constrain(w2 * 50, -200, 200);
-    int pwm3 = constrain(w3 * 50, -200, 200);
-    int pwm4 = constrain(w4 * 50, -200, 200);
+    int pwm1 = constrain(w1 * 20, -255, 255);
+    int pwm2 = constrain(w2 * 20, -255, 255);
+    int pwm3 = constrain(w3 * 20, -255, 255);
+    int pwm4 = constrain(w4 * 20, -255, 255);
     
     // 设置电机速度
     motor.setSpeed(pwm1, pwm2, pwm3, pwm4);
