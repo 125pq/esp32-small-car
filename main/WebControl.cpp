@@ -168,13 +168,14 @@ String WebControl::generateHTML() {
     
     // 巡线控制
     html += "<div class='control'><h2>Line Follow</h2>";
+    html += "<button onclick=\"controlVal('LF', '1')\">Start</button>";
+    html += "<button onclick=\"controlVal('LF', '0')\">Stop</button></div>";
+    
+
     // 避障控制
     html += "<div class='control'><h2>Obstacle Avoidance</h2>";
     html += "<button onclick=\"controlVal('OA', '1')\">Start</button>";
     html += "<button onclick=\"controlVal('OA', '0')\">Stop</button></div>";
-
-    // l += "<button onclick=\"controlVal('LF', '1')\">Start</button>";
-    html += "<button onclick=\"controlVal('LF', '0')\">Stop</button></div>";
 
     // 速度控制
     int currentSpeedInt = (int)(currentSpeed * 100);
