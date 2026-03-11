@@ -51,6 +51,12 @@ public:
     String getIPAddress();
 
     /**
+     * @brief 检查是否有客户端连接过
+     * @return true-有连接, false-无连接
+     */
+    bool hasClientConnected();
+
+    /**
      * @brief 设置LineFollower对象
      */
     void setLineFollower(LineFollower* lf) { lineFollower = lf; }
@@ -77,6 +83,7 @@ private:
     String generateHTML();
 
     float currentSpeed = 0.5; // 当前速度设定
+    bool clientConnected = false; // 客户端连接标志
 };
 
 #endif // WEBCONTROL_H
