@@ -47,41 +47,33 @@ void setup() {
 
     // * 初始化OLED显示屏
     if (!display.init()) {
-        Serial.println("Display init failed!");
         for (;;); // 停止程序
     }
-    Serial.println("Display initialized");
 
     // * 初始化各传感器和执行器
     ultrasonic.init();
     lineTracker.init();
     motor.init();
-    Serial.println("Sensors initialized");
 
     // * 测试电机
     display.show("Motor", "Testing...");
     motor.test();
-    Serial.println("Motor test done");
 
     // * 初始化MPU6050
     display.show("MPU6050", "Calibrating...");
     mpu6050.begin();
     mpu6050.calcGyroOffsets(true);
-    Serial.println("MPU6050 initialized");
 
     // * 初始化麦轮控制器
     mecanumControl.init();
-    Serial.println("Mecanum control initialized");
 
     // * 初始化WiFi和Web服务器
     display.show(WIFI_SSID, WIFI_PASSWORD, "Connecting...");
     if (webControl.init()) {
         webControl.setLineFollower(&lineFollower);
         display.show(webControl.getIPAddress());
-        Serial.println("WebControl initialized");
     } else {
         display.show("WiFi Failed!");
-        Serial.println("WebControl init failed!");
     }
 
     // * LED闪烁表示初始化完成
@@ -92,7 +84,6 @@ void setup() {
         delay(500);
     }
 
-    Serial.println("Setup complete!");
 }
 
 /**
