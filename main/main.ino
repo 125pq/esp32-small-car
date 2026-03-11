@@ -79,6 +79,16 @@ void setup() {
         webControl.setLineFollower(&lineFollower);
         display.show(webControl.getIPAddress());
         Serial.println("WebControl initialized");
+
+        // 等待客户端连接，最多等待10秒
+        unsigned long startTime = millis();
+        while (millis() - startTime < 10000) {
+            webControl.handleClient();
+            if (webControl.hasClientConnected()) {
+                break;
+            }
+            delay(10);
+        }
     } else {
         display.show("WiFi Failed!");
         Serial.println("WebControl init failed!");
