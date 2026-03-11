@@ -64,13 +64,11 @@ String WebControl::getIPAddress() {
 }
 
 void WebControl::handleRoot() {
-    clientConnected = true;
     String html = generateHTML();
     server->send(200, "text/html", html);
 }
 
 void WebControl::handleControl() {
-    clientConnected = true;
     String cmd = server->arg("cmd");
     String val = server->arg("val");
     
