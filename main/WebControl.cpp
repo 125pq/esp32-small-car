@@ -83,17 +83,6 @@ void WebControl::handleControl() {
         if (obstacleAvoidance != nullptr) {
             obstacleAvoidance->setSpeed(currentSpeed);
         }
-    } else if (cmd == "PID") {
-        String type = server->arg("type");
-        double p = server->arg("p").toDouble();
-        double i = server->arg("i").toDouble();
-        double d = server->arg("d").toDouble();
-        
-        if (type == "angle") {
-            mecanumControl.setAnglePID(p, i, d);
-        } else if (type == "speed") {
-            mecanumControl.setSpeedPID(p, i, d);
-        }
     } else if (cmd == "F") {
         mecanumControl.setTargetVelocity(currentSpeed * MAX_LINEAR_SPEED, 0, 0);
     } else if (cmd == "B") {
@@ -152,10 +141,8 @@ void WebControl::handleControl() {
 String WebControl::generateHTML() {
     String html = "<html><head><meta name='viewport' content='width=device-width, initial-scale=1'>";
     html += "<style>body{font-family:Arial;text-align:center;}";
-    html += ".control{display:inline-block;margin:10px;border:1px solid #ccc;padding:10px;vertical-align:top;}";
+    html += ".control{display:inline-block;margin:10px;}";
     html += "button{width:80px;height:80px;margin:5px;font-size:16px;}";
-    html += ".pid-input{width:50px;margin:2px;}";
-    html += ".btn-sm{width:60px;height:30px;font-size:12px;}";
     html += ".slider{width:300px;margin:10px;}</style></head>";
     html += "<body><h1>Mecanum Wheel Car Control</h1>";
     
@@ -196,20 +183,6 @@ String WebControl::generateHTML() {
     html += "<input type='range' id='speed' class='slider' min='0' max='100' value='" + String(currentSpeedInt) + "' onchange='updateSpeed()'>";
     html += "<p>Speed: <span id='speedValue'>" + String(currentSpeedInt) + "</span>%</p></div>";
     
-    // PID 调试控制
-    html += "<div class='control'><h2>PID Tuning</h2>";
-    html += "<h3>Angle PID</h3>";
-    html += "P:<input id='ap' class='pid-input' value='" + String(ANGLE_KP) + "'>";
-    html += "I:<input id='ai' class='pid-input' value='" + String(ANGLE_KI) + "'>";
-    html += "D:<input id='ad' class='pid-input' value='" + String(ANGLE_KD) + "'>";
-    html += "<br><button class='btn-sm' onclick=\"setPID('angle')\">Update</button>";
-    
-    html += "<h3>Speed PID</h3>";
-    html += "P:<input id='sp' class='pid-input' value='" + String(SPEED_KP) + "'>";
-    html += "I:<input id='si' class='pid-input' value='" + String(SPEED_KI) + "'>";
-    html += "D:<input id='sd' class='pid-input' value='" + String(SPEED_KD) + "'>";
-    html += "<br><button class='btn-sm' onclick=\"setPID('speed')\">Update</button></div>";
-
     html += "<script>";
     html += "function control(cmd){fetch('/control?cmd='+cmd);}";
     html += "function controlVal(cmd, val){fetch('/control?cmd='+cmd+'&val='+val);}";
@@ -217,12 +190,6 @@ String WebControl::generateHTML() {
     html += "var speed = document.getElementById('speed').value;";
     html += "document.getElementById('speedValue').innerHTML = speed;";
     html += "fetch('/control?cmd=SP&val='+speed);}";
-    html += "function setPID(type){";
-    html += "var p,i,d;";
-    html += "if(type=='angle'){ p=document.getElementById('ap').value; i=document.getElementById('ai').value; d=document.getElementById('ad').value; }";
-    html += "else{ p=document.getElementById('sp').value; i=document.getElementById('si').value; d=document.getElementById('sd').value; }";
-    html += "fetch('/control?cmd=PID&type='+type+'&p='+p+'&i='+i+'&d='+d);";
-    html += "}";
     html += "</script></body></html>";
     
     return html;
