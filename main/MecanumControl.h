@@ -55,6 +55,16 @@ public:
      */
     float getAngleOutput();
 
+    /**
+     * @brief 动态设置角度PID参数
+     */
+    void setAnglePID(double kp, double ki, double kd);
+
+    /**
+     * @brief 动态设置速度PID参数
+     */
+    void setSpeedPID(double kp, double ki, double kd);
+
 private:
     Motor& motor;
     MPU6050& mpu6050;
