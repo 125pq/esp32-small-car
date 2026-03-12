@@ -19,7 +19,7 @@
 LineFollower::LineFollower(LineTracker& tracker, MecanumControl& control) 
     : lineTracker(tracker), mecanumControl(control), running(false) {
     baseSpeed = 0.5 * MAX_LINEAR_SPEED;   // 基础前进速度
-    turnSpeed = 0.5 * MAX_ROTATION_SPEED;   // 转向速度
+    turnSpeed = 1.0;                      // NEW: 降低P系数，约为原来的40%
     lastLineTime = 0;
     isLost = false;
 }
@@ -39,7 +39,12 @@ void LineFollower::stop() {
 
 void LineFollower::setSpeed(float speed) {
     baseSpeed = speed * MAX_LINEAR_SPEED;
-    turnSpeed = speed * MAX_ROTATION_SPEED; 
+    // turnSpeed 稍微随速度增加，但整体比例降低
+    // 假设 speed 是 0.5 (中速), MAX_LINEAR 0.4. baseSpeed = 0.2.
+    // turnSpeed = 0.8 + 0.4 = 1.2 rad/s. 对于 error=3 (最大偏离)，omega=3.6 rad/s (太快了!)
+    // error 范围约 -3 到 3. 
+    // 期望最大修正角速度约 1.0 - 1.5 rad/s
+    turnSpeed = (0.3 + (speed * 0.5)); // 修改系数
 }
 
 bool LineFollower::isRunning() {
@@ -57,68 +62,54 @@ void LineFollower::update() {
     bool s3 = (state >> 2) & 1; // S3 右内
     bool s4 = (state >> 3) & 1; // S4 右外
     
-    // 如果所有传感器都在线上 (十字路口)
-    if (s1 && s2 && s3 && s4) {
-        // 十字路口直行
-         mecanumControl.setTargetVelocity(baseSpeed, 0, 0);
-         lastLineTime = millis();
-         return;
-    }
-
-    // 如果所有传感器都不在线上 (可能是虚线空隙，或者偏离)
-    if (!s1 && !s2 && !s3 && !s4) {
-        // 如果之前是在线的，现在丢失了，可能是虚线
-        // 简单处理：保持上一次的运动状态一段短时间，或者减速直行
-        // 这里选择：如果丢失时间短，继续直行；丢失时间长，停止
-        if (millis() - lastLineTime < 500) { // 500ms 虚线容忍度
-            // 继续之前的方向或者直行
-            // 这里简单直行
-             mecanumControl.setTargetVelocity(baseSpeed, 0, 0);
-        } else {
-            // 真的丢线了，停止或原地旋转寻找
-             mecanumControl.setTargetVelocity(0, 0, 0);
-        }
-        return;
-    }
-
-    lastLineTime = millis(); // 只要检测到线就更新时间
-
-    // 正常巡线逻辑
-    // 理想情况：S2 和 S3 在线上 (0101 -> 5)
-    if (s2 && s3) {
-        // 直行
-        mecanumControl.setTargetVelocity(baseSpeed, 0, 0);
-    }
-    // 左偏 (S2或S1在线，S3S4不在线) -> 需要右转纠正 ??? 不对
-    // 如果车身偏右，左边的传感器会碰到线。 如果车身偏左，右边的传感器会碰到线。
-    // 假设黑线在中间。
-    // 正常：     [ ] [X] [X] [ ]  (S2, S3在线)
-    // 车身偏右： [X] [X] [ ] [ ]  (S1, S2在线) -> 需要左转? 
-    //           或者只有 S1 在线 -> 需要大幅左转?
-    //           Wait, if sensor layout is Left to Right: S1 S2 S3 S4
-    //           Line is static. Car moves right. Line appears to move left relative to car.
-    //           So S1 detects line. So we need to turn LEFT to bring line back to center.
+    float error = 0;
+    int activeCount = 0;
     
-    else if (s1 && s2) { // 稍微偏右 -> 左转
-        mecanumControl.setTargetVelocity(baseSpeed, 0, turnSpeed * 0.5); 
+    // 计算加权偏差 (S1:-3, S2:-1, S3:1, S4:3)
+    // 负值表示线在左侧（车偏右），正值表示线在右侧（车偏左）
+    if (s1) { error -= 3.0; activeCount++; }
+    if (s2) { error -= 1.0; activeCount++; }
+    if (s3) { error += 1.0; activeCount++; }
+    if (s4) { error += 3.0; activeCount++; }
+    
+    if (activeCount > 0) {
+        error /= activeCount; // 归一化误差，范围约 -3 到 +3
+        lastLineTime = millis();
+    } else {
+        // 未检测到线
+        if (millis() - lastLineTime < 150) {
+            // 短暂丢线（可能是虚线或传感器间隙），假设误差为0保持直行以平稳过渡
+            error = 0;
+        } else {
+            // 丢失过久，停止
+            mecanumControl.setTargetVelocity(0, 0, 0);
+            return;
+        }
     }
-    else if (s1) { // 严重偏右 -> 大幅左转
-        mecanumControl.setTargetVelocity(baseSpeed * 0.5, 0, turnSpeed);
+    
+    // 如果是十字路口或大面积黑块（3个以上传感器触发）
+    if (activeCount >= 3) {
+        error = 0; // 视为直行
     }
-    else if (s3 && s4) { // 稍微偏左 -> 右转
-        mecanumControl.setTargetVelocity(baseSpeed, 0, -turnSpeed * 0.5);
+
+    // P控制计算旋转量
+    // Error 范围约 -3.0 ~ +3.0
+    // Error < 0 (左侧触发) -> 需要左转 (Omega > 0)
+    // Error > 0 (右侧触发) -> 需要右转 (Omega < 0)
+    float omega = -error * turnSpeed; 
+    
+    // 限制最大旋转速度，防止飞车
+    omega = constrain(omega, -MAX_ROTATION_SPEED * 1.5, MAX_ROTATION_SPEED * 1.5);
+
+    // 动态速度调整：当急转弯（误差大）时降低线速度
+    float currentVx = baseSpeed;
+    if (abs(error) > 1.5) {
+        currentVx *= 0.4; // 遇到急弯大幅减速 (40%速度)
+    } else if (abs(error) > 0.8) { // 稍微偏离也减速
+        currentVx *= 0.7;
     }
-    else if (s4) { // 严重偏左 -> 大幅右转
-        mecanumControl.setTargetVelocity(baseSpeed * 0.5, 0, -turnSpeed);
-    }
-    else if (s2) { // 只有S2在线，稍微偏右
-         mecanumControl.setTargetVelocity(baseSpeed, 0, turnSpeed * 0.3);
-    }
-    else if (s3) { // 只有S3在线，稍微偏左
-         mecanumControl.setTargetVelocity(baseSpeed, 0, -turnSpeed * 0.3);
-    }
-    else {
-        // 其他情况 (例如 S1和S4在线? 可能是路口或者是错误信号)
-        mecanumControl.setTargetVelocity(baseSpeed * 0.5, 0, 0);
-    }
+
+    // 将计算出的线速度和角速度应用到麦轮控制器
+    // 麦轮运动学模型会自动将其转换为左右轮的速度差
+    mecanumControl.setTargetVelocity(currentVx, 0, omega);
 }

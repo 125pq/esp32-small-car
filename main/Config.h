@@ -79,7 +79,7 @@
 /**
  * @brief 速度限制参数
  */
-#define MAX_LINEAR_SPEED 0.15   // 最大线速度 (m/s)
+#define MAX_LINEAR_SPEED 0.4   // 最大线速度 (m/s)
 #define MAX_ROTATION_SPEED 1.0 // 最大旋转速度 (rad/s)
 
 /**
