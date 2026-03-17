@@ -75,7 +75,7 @@
 // 循迹平滑控制参数
 #define LF_ERROR_FILTER_ALPHA 0.70f      // 误差低通滤波系数
 #define LF_DAMPING_GAIN 0.02f            // 微分阻尼系数
-#define LF_OMEGA_SMOOTH_ALPHA 0.70f      // 转向命令平滑系数
+#define LF_OMEGA_SMOOTH_ALPHA 0.45f      // 转向命令平滑系数（减小以提升转向响应）
 #define LF_SPEED_REDUCTION_GAIN 0.55f    // 偏差增大时的降速比例
 #define LF_MIN_FORWARD_RATIO 0.45f       // 最低前进速度比例
 #define LF_LOST_HOLD_MS 180              // 短时丢线保持时间 (ms)
@@ -83,6 +83,17 @@
 #define LF_LOST_OMEGA_DECAY 0.88f        // 丢线保持阶段角速度衰减系数
 #define LF_SEARCH_OMEGA_RATIO 0.60f      // 丢线搜索角速度比例
 #define LF_SEARCH_SPEED_RATIO 0.35f      // 丢线搜索前进速度比例
+#define LF_PATTERN_SLIGHT_TURN_RATIO 0.45f   // 轻微偏移转向比例
+#define LF_PATTERN_MEDIUM_TURN_RATIO 0.75f   // 中等偏移转向比例
+#define LF_PATTERN_LARGE_TURN_RATIO 1.00f    // 大偏移转向比例
+#define LF_PATTERN_SLIGHT_SPEED_RATIO 0.92f  // 轻微偏移前进速度比例
+#define LF_PATTERN_MEDIUM_SPEED_RATIO 0.80f  // 中等偏移前进速度比例
+#define LF_PATTERN_LARGE_SPEED_RATIO 0.65f   // 大偏移前进速度比例
+#define LF_RIGHT_TURN_OMEGA_RATIO 1.00f      // 右转路口旋转速度比例
+#define LF_RIGHT_TURN_90_MS 850UL            // 右转90度动作时长 (ms)
+#define LF_OBSTACLE_DISTANCE_CM 8.0f     // 巡线时触发避障的距离阈值 (cm)
+#define LF_OBSTACLE_RETREAT_MS 450UL     // 遇障后左后退持续时间 (ms)
+#define LF_OBSTACLE_MEASURE_INTERVAL_MS 80UL // 巡线时超声测距周期 (ms)
 
 /**
  * @brief 速度限制参数

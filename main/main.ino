@@ -32,7 +32,7 @@ LineTracker lineTracker;         // 巡线传感器
 Display display;                 // OLED显示屏
 MecanumControl mecanumControl(motor, mpu6050);  // 麦轮运动控制器
 WebControl webControl(mecanumControl);          // Web服务器控制器
-LineFollower lineFollower(lineTracker, mecanumControl); // 巡线控制器
+LineFollower lineFollower(lineTracker, mecanumControl, &ultrasonic); // 巡线控制器（内置遇障后左后退）
 ObstacleAvoidance obstacleAvoidance(ultrasonic, mecanumControl); // 避障控制器
 
 /**

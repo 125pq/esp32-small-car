@@ -10,6 +10,7 @@
 
 #include "LineTracker.h"
 #include "MecanumControl.h"
+#include "Ultrasonic.h"
 
 class LineFollower {
 public:
@@ -17,8 +18,14 @@ public:
      * @brief 构造函数
      * @param tracker 巡线传感器引用
      * @param control 麦轮控制引用
+        * @param ultrasonicSensor 超声波传感器（可选）
      */
-    LineFollower(LineTracker& tracker, MecanumControl& control);
+    LineFollower(LineTracker& tracker, MecanumControl& control, Ultrasonic* ultrasonicSensor = nullptr);
+
+    /**
+        * @brief 设置/更新超声波传感器引用
+        */
+    void setUltrasonic(Ultrasonic* ultrasonicSensor);
 
     /**
      * @brief 开始寻线
@@ -67,6 +74,7 @@ public:
 private:
     LineTracker& lineTracker;
     MecanumControl& mecanumControl;
+    Ultrasonic* ultrasonic;
     bool running;
     
     // 基础速度参数
@@ -96,6 +104,19 @@ private:
     // 虚线处理
     unsigned long lastLineTime;  // 上次检测到线的时间
     bool isLost;                 // 是否丢失线条
+
+    // 巡线内置遇障左后退状态
+    bool obstacleRetreating;
+    unsigned long obstacleRetreatStartTime;
+    unsigned long lastObstacleMeasureTime;
+    float lastObstacleDistance;
+
+    // 0111 右转路口动作状态
+    bool rightTurning;
+    bool rightTurnArmed;
+    unsigned long rightTurnStartTime;
+
+    bool isObstacleTooClose(unsigned long now);
 };
 
 #endif // LINEFOLLOWER_H

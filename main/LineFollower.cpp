@@ -16,10 +16,10 @@
 // Bit 2: S3 (中右)
 // Bit 3: S4 (最右)
 
-LineFollower::LineFollower(LineTracker& tracker, MecanumControl& control) 
-    : lineTracker(tracker), mecanumControl(control), running(false) {
+LineFollower::LineFollower(LineTracker& tracker, MecanumControl& control, Ultrasonic* ultrasonicSensor) 
+    : lineTracker(tracker), mecanumControl(control), ultrasonic(ultrasonicSensor), running(false) {
     baseSpeed = 0.5 * MAX_LINEAR_SPEED;   // 基础前进速度
-    turnSpeed = 0.5 * MAX_ROTATION_SPEED; // 转向速度上限
+    turnSpeed = 0.7 * MAX_ROTATION_SPEED; // 转向速度上限（提高默认转向力度）
     resetTuningToDefault();
     filteredError = 0.0f;
     prevError = 0.0f;
@@ -27,6 +27,13 @@ LineFollower::LineFollower(LineTracker& tracker, MecanumControl& control)
     lastControlTime = 0;
     lastLineTime = 0;
     isLost = false;
+    obstacleRetreating = false;
+    obstacleRetreatStartTime = 0;
+    lastObstacleMeasureTime = 0;
+    lastObstacleDistance = 400.0f;
+    rightTurning = false;
+    rightTurnArmed = true;
+    rightTurnStartTime = 0;
 }
 
 void LineFollower::start() {
@@ -37,6 +44,13 @@ void LineFollower::start() {
     filteredError = 0.0f;
     prevError = 0.0f;
     lastOmegaCmd = 0.0f;
+    obstacleRetreating = false;
+    obstacleRetreatStartTime = 0;
+    lastObstacleMeasureTime = 0;
+    lastObstacleDistance = 400.0f;
+    rightTurning = false;
+    rightTurnArmed = true;
+    rightTurnStartTime = 0;
     Serial.println("Line Follower Started");
 }
 
@@ -45,8 +59,19 @@ void LineFollower::stop() {
     filteredError = 0.0f;
     prevError = 0.0f;
     lastOmegaCmd = 0.0f;
+    obstacleRetreating = false;
+    obstacleRetreatStartTime = 0;
+    rightTurning = false;
+    rightTurnArmed = true;
+    rightTurnStartTime = 0;
     mecanumControl.setTargetVelocity(0, 0, 0);
     Serial.println("Line Follower Stopped");
+}
+
+void LineFollower::setUltrasonic(Ultrasonic* ultrasonicSensor) {
+    ultrasonic = ultrasonicSensor;
+    lastObstacleMeasureTime = 0;
+    lastObstacleDistance = 400.0f;
 }
 
 void LineFollower::setSpeed(float speed) {
@@ -58,8 +83,8 @@ void LineFollower::setSpeed(float speed) {
     }
 
     baseSpeed = normalizedSpeed * MAX_LINEAR_SPEED;
-    turnSpeed = constrain(normalizedSpeed * MAX_ROTATION_SPEED,
-                          MAX_ROTATION_SPEED * 0.12f,
+    turnSpeed = constrain(normalizedSpeed * MAX_ROTATION_SPEED * 1.35f,
+                          MAX_ROTATION_SPEED * 0.20f,
                           MAX_ROTATION_SPEED);
 }
 
@@ -129,8 +154,8 @@ void LineFollower::resetTuningToDefault() {
     lostOmegaDecay = LF_LOST_OMEGA_DECAY;
     searchOmegaRatio = LF_SEARCH_OMEGA_RATIO;
     searchSpeedRatio = LF_SEARCH_SPEED_RATIO;
-    turnGain = 0.85f;
-    dErrorClamp = 8.0f;
+    turnGain = 1.20f;
+    dErrorClamp = 12.0f;
     lostHoldMs = LF_LOST_HOLD_MS;
     lostTimeoutMs = LF_LOST_TIMEOUT_MS;
 }
@@ -157,10 +182,70 @@ bool LineFollower::isRunning() {
     return running;
 }
 
+bool LineFollower::isObstacleTooClose(unsigned long now) {
+    if (ultrasonic == nullptr) {
+        return false;
+    }
+
+    if (lastObstacleMeasureTime == 0 ||
+        now - lastObstacleMeasureTime >= LF_OBSTACLE_MEASURE_INTERVAL_MS) {
+        float distance = ultrasonic->getDistance();
+        if (distance > 0.0f) {
+            lastObstacleDistance = distance;
+        } else {
+            // 超声超时或错误时，按远距离处理，避免误触发。
+            lastObstacleDistance = 400.0f;
+        }
+        lastObstacleMeasureTime = now;
+    }
+
+    return lastObstacleDistance > 0.0f && lastObstacleDistance < LF_OBSTACLE_DISTANCE_CM;
+}
+
 void LineFollower::update() {
     if (!running) return;
 
     unsigned long now = millis();
+
+    // 巡线模式内置简易避障：遇障先左后退，再恢复巡线。
+    if (obstacleRetreating) {
+        if (now - obstacleRetreatStartTime < LF_OBSTACLE_RETREAT_MS) {
+            mecanumControl.setTargetVelocity(-baseSpeed, baseSpeed, 0);
+            return;
+        }
+        obstacleRetreating = false;
+        lastObstacleDistance = 400.0f;
+        lastObstacleMeasureTime = 0;
+        filteredError = 0.0f;
+        prevError = 0.0f;
+        lastOmegaCmd = 0.0f;
+        lastLineTime = now;
+        isLost = false;
+    }
+
+    if (isObstacleTooClose(now)) {
+        obstacleRetreating = true;
+        obstacleRetreatStartTime = now;
+        mecanumControl.setTargetVelocity(-baseSpeed, baseSpeed, 0);
+        return;
+    }
+
+    if (rightTurning) {
+        if (now - rightTurnStartTime < LF_RIGHT_TURN_90_MS) {
+            float turnOmega = -turnSpeed * LF_RIGHT_TURN_OMEGA_RATIO;
+            turnOmega = constrain(turnOmega, -turnSpeed, turnSpeed);
+            lastOmegaCmd = turnOmega;
+            mecanumControl.setTargetVelocity(0, 0, turnOmega);
+            return;
+        }
+        rightTurning = false;
+        filteredError = 0.0f;
+        prevError = 0.0f;
+        lastOmegaCmd = 0.0f;
+        lastLineTime = now;
+        isLost = false;
+    }
+
     float dt = (now - lastControlTime) / 1000.0f;
     if (lastControlTime == 0 || dt <= 0.0f || dt > 0.2f) {
         dt = 0.02f;
@@ -176,19 +261,86 @@ void LineFollower::update() {
     bool s4 = (state >> 3) & 1; // S4 右外
 
     int activeCount = (s1 ? 1 : 0) + (s2 ? 1 : 0) + (s3 ? 1 : 0) + (s4 ? 1 : 0);
+    // pattern顺序按传感器物理顺序：S1 S2 S3 S4（左->右）
+    uint8_t pattern = (s1 ? 0b1000 : 0) |
+                      (s2 ? 0b0100 : 0) |
+                      (s3 ? 0b0010 : 0) |
+                      (s4 ? 0b0001 : 0);
 
-    // 十字路口等全黑区域，优先直行穿过
-    if (activeCount == 4) {
+    if (pattern != 0b0111) {
+        rightTurnArmed = true;
+    }
+
+    if (pattern == 0b0111 && rightTurnArmed) {
+        rightTurning = true;
+        rightTurnArmed = false;
+        rightTurnStartTime = now;
         lastLineTime = now;
         isLost = false;
-        filteredError *= 0.5f;
-        prevError = filteredError;
-        lastOmegaCmd = 0.0f;
-        mecanumControl.setTargetVelocity(baseSpeed, 0, 0);
+        filteredError = 0.0f;
+        prevError = 0.0f;
+        float turnOmega = -turnSpeed * LF_RIGHT_TURN_OMEGA_RATIO;
+        turnOmega = constrain(turnOmega, -turnSpeed, turnSpeed);
+        lastOmegaCmd = turnOmega;
+        mecanumControl.setTargetVelocity(0, 0, turnOmega);
         return;
     }
 
     if (activeCount > 0) {
+        float mappedOmega = 0.0f;
+        float mappedSpeedRatio = 1.0f;
+        bool mappedState = true;
+
+        switch (pattern) {
+            case 0b0110: // 在线正中
+            case 0b1111: // 十字路口，直行通过
+                mappedOmega = 0.0f;
+                mappedSpeedRatio = 1.0f;
+                break;
+            case 0b0100: // 轻微偏左
+                mappedOmega = turnSpeed * LF_PATTERN_SLIGHT_TURN_RATIO;
+                mappedSpeedRatio = LF_PATTERN_SLIGHT_SPEED_RATIO;
+                break;
+            case 0b0010: // 轻微偏右
+                mappedOmega = -turnSpeed * LF_PATTERN_SLIGHT_TURN_RATIO;
+                mappedSpeedRatio = LF_PATTERN_SLIGHT_SPEED_RATIO;
+                break;
+            case 0b1100: // 中等偏左
+                mappedOmega = turnSpeed * LF_PATTERN_MEDIUM_TURN_RATIO;
+                mappedSpeedRatio = LF_PATTERN_MEDIUM_SPEED_RATIO;
+                break;
+            case 0b0011: // 中等偏右
+                mappedOmega = -turnSpeed * LF_PATTERN_MEDIUM_TURN_RATIO;
+                mappedSpeedRatio = LF_PATTERN_MEDIUM_SPEED_RATIO;
+                break;
+            case 0b1000: // 大幅偏左
+                mappedOmega = turnSpeed * LF_PATTERN_LARGE_TURN_RATIO;
+                mappedSpeedRatio = LF_PATTERN_LARGE_SPEED_RATIO;
+                break;
+            case 0b0001: // 大幅偏右
+                mappedOmega = -turnSpeed * LF_PATTERN_LARGE_TURN_RATIO;
+                mappedSpeedRatio = LF_PATTERN_LARGE_SPEED_RATIO;
+                break;
+            default:
+                mappedState = false;
+                break;
+        }
+
+        if (mappedState) {
+            float omegaCmd = omegaSmoothAlpha * lastOmegaCmd +
+                             (1.0f - omegaSmoothAlpha) * mappedOmega;
+            omegaCmd = constrain(omegaCmd, -turnSpeed, turnSpeed);
+
+            float vxCmd = baseSpeed * mappedSpeedRatio;
+            lastLineTime = now;
+            isLost = false;
+            filteredError = 0.0f;
+            prevError = 0.0f;
+            lastOmegaCmd = omegaCmd;
+            mecanumControl.setTargetVelocity(vxCmd, 0, omegaCmd);
+            return;
+        }
+
         // 连续误差：左负右正
         float errorSum = 0.0f;
         if (s1) errorSum -= 3.0f;
