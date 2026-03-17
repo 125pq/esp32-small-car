@@ -37,6 +37,24 @@ public:
     void setSpeed(float speed);
 
     /**
+     * @brief 设置巡线算法参数
+     * @param key 参数键
+     * @param value 参数值
+     * @return true-设置成功, false-参数不存在
+     */
+    bool setTuning(const String& key, float value);
+
+    /**
+     * @brief 恢复巡线参数默认值
+     */
+    void resetTuningToDefault();
+
+    /**
+     * @brief 获取巡线参数JSON
+     */
+    String getTuningJson() const;
+
+    /**
      * @brief 更新寻线状态（在loop中调用）
      */
     void update();
@@ -54,6 +72,20 @@ private:
     // 基础速度参数
     float baseSpeed;
     float turnSpeed;
+
+    // 可运行时调节参数
+    float errorFilterAlpha;
+    float dampingGain;
+    float omegaSmoothAlpha;
+    float speedReductionGain;
+    float minForwardRatio;
+    float lostOmegaDecay;
+    float searchOmegaRatio;
+    float searchSpeedRatio;
+    float turnGain;
+    float dErrorClamp;
+    unsigned long lostHoldMs;
+    unsigned long lostTimeoutMs;
 
     // 平滑循迹状态
     float filteredError;

@@ -39,6 +39,7 @@ bool WebControl::init() {
     // 设置Web服务器路由
     server->on("/", [this]() { this->handleRoot(); });
     server->on("/control", [this]() { this->handleControl(); });
+    server->on("/lineParams", [this]() { this->handleLineParams(); });
     
     // 启动Web服务器
     server->begin();
@@ -62,6 +63,14 @@ String WebControl::getIPAddress() {
 void WebControl::handleRoot() {
     String html = generateHTML();
     server->send(200, "text/html", html);
+}
+
+void WebControl::handleLineParams() {
+    if (lineFollower == nullptr) {
+        server->send(200, "application/json", "{}");
+        return;
+    }
+    server->send(200, "application/json", lineFollower->getTuningJson());
 }
 
 void WebControl::handleControl() {
@@ -133,6 +142,27 @@ void WebControl::handleControl() {
                 obstacleAvoidance->stop();
             }
         }
+    } else if (cmd == "LFP") {
+        if (lineFollower == nullptr) {
+            server->send(503, "text/plain", "Line follower unavailable");
+            return;
+        }
+        String key = server->arg("key");
+        if (key.length() == 0 || !server->hasArg("val")) {
+            server->send(400, "text/plain", "Missing key or val");
+            return;
+        }
+        float tuneValue = server->arg("val").toFloat();
+        if (!lineFollower->setTuning(key, tuneValue)) {
+            server->send(400, "text/plain", "Unknown tuning key");
+            return;
+        }
+    } else if (cmd == "LFR") {
+        if (lineFollower == nullptr) {
+            server->send(503, "text/plain", "Line follower unavailable");
+            return;
+        }
+        lineFollower->resetTuningToDefault();
     }
     
     server->send(200, "text/plain", "OK");
@@ -140,10 +170,14 @@ void WebControl::handleControl() {
 
 String WebControl::generateHTML() {
     String html = "<html><head><meta name='viewport' content='width=device-width, initial-scale=1'>";
-    html += "<style>body{font-family:Arial;text-align:center;}";
-    html += ".control{display:inline-block;margin:10px;}";
-    html += "button{width:80px;height:80px;margin:5px;font-size:16px;}";
-    html += ".slider{width:300px;margin:10px;}</style></head>";
+    html += "<style>body{font-family:Arial;text-align:center;background:#f7f7f7;margin:0;padding:10px;}";
+    html += ".control{display:inline-block;margin:10px;vertical-align:top;background:#fff;padding:10px;border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,.1);} ";
+    html += "button{width:88px;height:44px;margin:4px;font-size:14px;border-radius:6px;border:1px solid #ccc;background:#fafafa;}";
+    html += ".slider{width:260px;margin:6px 0;}";
+    html += ".param{margin:8px 0;text-align:left;}";
+    html += ".param label{display:block;font-size:13px;color:#333;}";
+    html += ".smallbtn{width:auto;height:34px;padding:0 12px;}";
+    html += "</style></head>";
     html += "<body><h1>Mecanum Wheel Car Control</h1>";
     
     // 方向控制
@@ -182,14 +216,47 @@ String WebControl::generateHTML() {
     html += "<div class='control'><h2>Speed</h2>";
     html += "<input type='range' id='speed' class='slider' min='0' max='100' value='" + String(currentSpeedInt) + "' onchange='updateSpeed()'>";
     html += "<p>Speed: <span id='speedValue'>" + String(currentSpeedInt) + "</span>%</p></div>";
+
+    // 巡线参数调节
+    html += "<div class='control'><h2>Line Follow Tuning</h2>";
+    html += "<div class='param'><label>Error Filter Alpha: <span id='v_efa'>0</span></label><input type='range' id='p_efa' class='slider' min='0.30' max='0.98' step='0.01' oninput=\"updateParam('efa','p_efa','v_efa')\"></div>";
+    html += "<div class='param'><label>Damping Gain: <span id='v_dg'>0</span></label><input type='range' id='p_dg' class='slider' min='0.00' max='0.20' step='0.005' oninput=\"updateParam('dg','p_dg','v_dg')\"></div>";
+    html += "<div class='param'><label>Omega Smooth Alpha: <span id='v_osa'>0</span></label><input type='range' id='p_osa' class='slider' min='0.30' max='0.98' step='0.01' oninput=\"updateParam('osa','p_osa','v_osa')\"></div>";
+    html += "<div class='param'><label>Turn Gain: <span id='v_tg'>0</span></label><input type='range' id='p_tg' class='slider' min='0.20' max='1.50' step='0.01' oninput=\"updateParam('tg','p_tg','v_tg')\"></div>";
+    html += "<div class='param'><label>D-Error Clamp: <span id='v_dec'>0</span></label><input type='range' id='p_dec' class='slider' min='1' max='30' step='1' oninput=\"updateParam('dec','p_dec','v_dec')\"></div>";
+    html += "<div class='param'><label>Speed Reduction Gain: <span id='v_srg'>0</span></label><input type='range' id='p_srg' class='slider' min='0.00' max='0.95' step='0.01' oninput=\"updateParam('srg','p_srg','v_srg')\"></div>";
+    html += "<div class='param'><label>Min Forward Ratio: <span id='v_mfr'>0</span></label><input type='range' id='p_mfr' class='slider' min='0.10' max='0.95' step='0.01' oninput=\"updateParam('mfr','p_mfr','v_mfr')\"></div>";
+    html += "<div class='param'><label>Lost Hold (ms): <span id='v_lhm'>0</span></label><input type='range' id='p_lhm' class='slider' min='50' max='2000' step='10' oninput=\"updateParam('lhm','p_lhm','v_lhm')\"></div>";
+    html += "<div class='param'><label>Lost Timeout (ms): <span id='v_ltm'>0</span></label><input type='range' id='p_ltm' class='slider' min='100' max='6000' step='20' oninput=\"updateParam('ltm','p_ltm','v_ltm')\"></div>";
+    html += "<div class='param'><label>Lost Omega Decay: <span id='v_lod'>0</span></label><input type='range' id='p_lod' class='slider' min='0.50' max='0.99' step='0.01' oninput=\"updateParam('lod','p_lod','v_lod')\"></div>";
+    html += "<div class='param'><label>Search Omega Ratio: <span id='v_sor'>0</span></label><input type='range' id='p_sor' class='slider' min='0.20' max='1.20' step='0.01' oninput=\"updateParam('sor','p_sor','v_sor')\"></div>";
+    html += "<div class='param'><label>Search Speed Ratio: <span id='v_ssr'>0</span></label><input type='range' id='p_ssr' class='slider' min='0.10' max='0.90' step='0.01' oninput=\"updateParam('ssr','p_ssr','v_ssr')\"></div>";
+    html += "<button class='smallbtn' onclick='resetLineParams()'>Reset Line Params</button></div>";
     
     html += "<script>";
+    html += "var lineParamTimer = {};";
     html += "function control(cmd){fetch('/control?cmd='+cmd);}";
     html += "function controlVal(cmd, val){fetch('/control?cmd='+cmd+'&val='+val);}";
     html += "function updateSpeed(){";
     html += "var speed = document.getElementById('speed').value;";
     html += "document.getElementById('speedValue').innerHTML = speed;";
     html += "fetch('/control?cmd=SP&val='+speed);}";
+    html += "function updateParam(key, sliderId, valueId){";
+    html += "var v = document.getElementById(sliderId).value;";
+    html += "document.getElementById(valueId).innerHTML = v;";
+    html += "if(lineParamTimer[key]){clearTimeout(lineParamTimer[key]);}";
+    html += "lineParamTimer[key]=setTimeout(function(){fetch('/control?cmd=LFP&key='+key+'&val='+v);},120);}";
+    html += "function setLineParamValue(key, value){";
+    html += "var slider=document.getElementById('p_'+key);";
+    html += "var label=document.getElementById('v_'+key);";
+    html += "if(slider){slider.value=value;}";
+    html += "if(label){label.innerHTML=value;}}";
+    html += "function loadLineParams(){";
+    html += "fetch('/lineParams').then(function(resp){return resp.json();}).then(function(data){";
+    html += "for(var key in data){setLineParamValue(key, data[key]);}";
+    html += "}).catch(function(){});} ";
+    html += "function resetLineParams(){fetch('/control?cmd=LFR').then(function(){loadLineParams();});}";
+    html += "window.addEventListener('load', loadLineParams);";
     html += "</script></body></html>";
     
     return html;

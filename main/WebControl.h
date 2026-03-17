@@ -78,6 +78,11 @@ private:
     void handleControl();
 
     /**
+     * @brief 获取巡线参数
+     */
+    void handleLineParams();
+
+    /**
      * @brief 生成HTML控制页面
      * @return HTML字符串
      */

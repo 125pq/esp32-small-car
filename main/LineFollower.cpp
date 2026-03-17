@@ -20,6 +20,7 @@ LineFollower::LineFollower(LineTracker& tracker, MecanumControl& control)
     : lineTracker(tracker), mecanumControl(control), running(false) {
     baseSpeed = 0.5 * MAX_LINEAR_SPEED;   // 基础前进速度
     turnSpeed = 0.5 * MAX_ROTATION_SPEED; // 转向速度上限
+    resetTuningToDefault();
     filteredError = 0.0f;
     prevError = 0.0f;
     lastOmegaCmd = 0.0f;
@@ -54,6 +55,96 @@ void LineFollower::setSpeed(float speed) {
     turnSpeed = constrain(normalizedSpeed * MAX_ROTATION_SPEED,
                           MAX_ROTATION_SPEED * 0.2f,
                           MAX_ROTATION_SPEED);
+}
+
+bool LineFollower::setTuning(const String& key, float value) {
+    if (key == "efa") {
+        errorFilterAlpha = constrain(value, 0.30f, 0.98f);
+        return true;
+    }
+    if (key == "dg") {
+        dampingGain = constrain(value, 0.0f, 0.20f);
+        return true;
+    }
+    if (key == "osa") {
+        omegaSmoothAlpha = constrain(value, 0.30f, 0.98f);
+        return true;
+    }
+    if (key == "srg") {
+        speedReductionGain = constrain(value, 0.0f, 0.95f);
+        return true;
+    }
+    if (key == "mfr") {
+        minForwardRatio = constrain(value, 0.10f, 0.95f);
+        return true;
+    }
+    if (key == "lod") {
+        lostOmegaDecay = constrain(value, 0.50f, 0.99f);
+        return true;
+    }
+    if (key == "sor") {
+        searchOmegaRatio = constrain(value, 0.20f, 1.20f);
+        return true;
+    }
+    if (key == "ssr") {
+        searchSpeedRatio = constrain(value, 0.10f, 0.90f);
+        return true;
+    }
+    if (key == "tg") {
+        turnGain = constrain(value, 0.20f, 1.50f);
+        return true;
+    }
+    if (key == "dec") {
+        dErrorClamp = constrain(value, 1.0f, 30.0f);
+        return true;
+    }
+    if (key == "lhm") {
+        lostHoldMs = (unsigned long)constrain(value, 50.0f, 2000.0f);
+        if (lostTimeoutMs <= lostHoldMs + 50UL) {
+            lostTimeoutMs = lostHoldMs + 50UL;
+        }
+        return true;
+    }
+    if (key == "ltm") {
+        unsigned long minTimeout = lostHoldMs + 50UL;
+        lostTimeoutMs = (unsigned long)constrain(value, (float)minTimeout, 6000.0f);
+        return true;
+    }
+
+    return false;
+}
+
+void LineFollower::resetTuningToDefault() {
+    errorFilterAlpha = LF_ERROR_FILTER_ALPHA;
+    dampingGain = LF_DAMPING_GAIN;
+    omegaSmoothAlpha = LF_OMEGA_SMOOTH_ALPHA;
+    speedReductionGain = LF_SPEED_REDUCTION_GAIN;
+    minForwardRatio = LF_MIN_FORWARD_RATIO;
+    lostOmegaDecay = LF_LOST_OMEGA_DECAY;
+    searchOmegaRatio = LF_SEARCH_OMEGA_RATIO;
+    searchSpeedRatio = LF_SEARCH_SPEED_RATIO;
+    turnGain = 0.85f;
+    dErrorClamp = 8.0f;
+    lostHoldMs = LF_LOST_HOLD_MS;
+    lostTimeoutMs = LF_LOST_TIMEOUT_MS;
+}
+
+String LineFollower::getTuningJson() const {
+    String json = "{";
+    json += "\"efa\":" + String(errorFilterAlpha, 3) + ",";
+    json += "\"dg\":" + String(dampingGain, 3) + ",";
+    json += "\"osa\":" + String(omegaSmoothAlpha, 3) + ",";
+    json += "\"srg\":" + String(speedReductionGain, 3) + ",";
+    json += "\"mfr\":" + String(minForwardRatio, 3) + ",";
+    json += "\"lod\":" + String(lostOmegaDecay, 3) + ",";
+    json += "\"sor\":" + String(searchOmegaRatio, 3) + ",";
+    json += "\"ssr\":" + String(searchSpeedRatio, 3) + ",";
+    json += "\"tg\":" + String(turnGain, 3) + ",";
+    json += "\"dec\":" + String(dErrorClamp, 3) + ",";
+    json += "\"lhm\":" + String(lostHoldMs) + ",";
+    json += "\"ltm\":" + String(lostTimeoutMs);
+    json += "}";
+    return json;
 }
 
 bool LineFollower::isRunning() {
@@ -100,21 +191,21 @@ void LineFollower::update() {
         if (s4) errorSum += 3.0f;
 
         float rawError = errorSum / activeCount;
-        filteredError = LF_ERROR_FILTER_ALPHA * filteredError +
-                        (1.0f - LF_ERROR_FILTER_ALPHA) * rawError;
+        filteredError = errorFilterAlpha * filteredError +
+                (1.0f - errorFilterAlpha) * rawError;
 
         float dError = (filteredError - prevError) / dt;
-        dError = constrain(dError, -8.0f, 8.0f);
+        dError = constrain(dError, -dErrorClamp, dErrorClamp);
         prevError = filteredError;
 
-        float omegaRaw = -(filteredError * turnSpeed * 0.85f + dError * LF_DAMPING_GAIN);
-        float omegaCmd = LF_OMEGA_SMOOTH_ALPHA * lastOmegaCmd +
-                         (1.0f - LF_OMEGA_SMOOTH_ALPHA) * omegaRaw;
+        float omegaRaw = -(filteredError * turnSpeed * turnGain + dError * dampingGain);
+        float omegaCmd = omegaSmoothAlpha * lastOmegaCmd +
+                 (1.0f - omegaSmoothAlpha) * omegaRaw;
         omegaCmd = constrain(omegaCmd, -turnSpeed, turnSpeed);
 
         float errorNorm = constrain(fabs(filteredError) / 3.0f, 0.0f, 1.0f);
-        float speedScale = 1.0f - (errorNorm * LF_SPEED_REDUCTION_GAIN);
-        speedScale = max(speedScale, LF_MIN_FORWARD_RATIO);
+        float speedScale = 1.0f - (errorNorm * speedReductionGain);
+        speedScale = max(speedScale, minForwardRatio);
         float vxCmd = baseSpeed * speedScale;
 
         lastLineTime = now;
@@ -127,19 +218,19 @@ void LineFollower::update() {
     // 丢线处理：短时保持，随后温和搜索，最后停止
     isLost = true;
     unsigned long lostDuration = now - lastLineTime;
-    if (lostDuration < LF_LOST_HOLD_MS) {
-        lastOmegaCmd *= LF_LOST_OMEGA_DECAY;
+    if (lostDuration < lostHoldMs) {
+        lastOmegaCmd *= lostOmegaDecay;
         mecanumControl.setTargetVelocity(baseSpeed * 0.75f, 0, lastOmegaCmd);
         return;
     }
 
-    if (lostDuration < LF_LOST_TIMEOUT_MS) {
+    if (lostDuration < lostTimeoutMs) {
         float searchDirection = (lastOmegaCmd >= 0.0f) ? 1.0f : -1.0f;
         if (fabs(lastOmegaCmd) < DEAD_ZONE) {
             searchDirection = (filteredError <= 0.0f) ? 1.0f : -1.0f;
         }
-        float searchOmega = searchDirection * turnSpeed * LF_SEARCH_OMEGA_RATIO;
-        float searchVx = baseSpeed * LF_SEARCH_SPEED_RATIO;
+        float searchOmega = searchDirection * turnSpeed * searchOmegaRatio;
+        float searchVx = baseSpeed * searchSpeedRatio;
         lastOmegaCmd = searchOmega;
         mecanumControl.setTargetVelocity(searchVx, 0, searchOmega);
         return;
