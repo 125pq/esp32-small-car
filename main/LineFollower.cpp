@@ -272,7 +272,8 @@ void LineFollower::update() {
     // 巡线模式内置简易避障：遇障先左后退，再恢复巡线。
     if (obstacleRetreating) {
         if (now - obstacleRetreatStartTime < obstacleRetreatMs) {
-            mecanumControl.setTargetVelocity(-baseSpeed, baseSpeed, 0);
+            mecanumControl.setTargetVelocity(-baseSpeed, baseSpeed * 2, 0);
+            
             return;
         }
         obstacleRetreating = false;
@@ -283,7 +284,7 @@ void LineFollower::update() {
     if (isObstacleTooClose(now)) {
         obstacleRetreating = true;
         obstacleRetreatStartTime = now;
-        mecanumControl.setTargetVelocity(-baseSpeed, baseSpeed, 0);
+        mecanumControl.setTargetVelocity(-baseSpeed, baseSpeed * 2, 0);
         return;
     }
 
