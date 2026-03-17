@@ -83,7 +83,7 @@ void WebControl::handleControl() {
     // Serial.print("CMD: "); Serial.println(cmd);
     
     if (cmd == "SP") {
-        currentSpeed = val.toFloat() / 100.0;
+        currentSpeed = constrain(val.toFloat() / 100.0f, 0.0f, 1.0f);
         // Optional: Update current motion if moving?
         // For now, just store the speed.
         if (lineFollower != nullptr) {
@@ -214,7 +214,7 @@ String WebControl::generateHTML() {
     // 速度控制
     int currentSpeedInt = (int)(currentSpeed * 100);
     html += "<div class='control'><h2>Speed</h2>";
-    html += "<input type='range' id='speed' class='slider' min='0' max='100' value='" + String(currentSpeedInt) + "' onchange='updateSpeed()'>";
+    html += "<input type='range' id='speed' class='slider' min='0' max='100' value='" + String(currentSpeedInt) + "' oninput='updateSpeed()' onchange='updateSpeed(true)'>";
     html += "<p>Speed: <span id='speedValue'>" + String(currentSpeedInt) + "</span>%</p></div>";
 
     // 巡线参数调节
@@ -235,12 +235,16 @@ String WebControl::generateHTML() {
     
     html += "<script>";
     html += "var lineParamTimer = {};";
+    html += "var speedTimer = null;";
     html += "function control(cmd){fetch('/control?cmd='+cmd);}";
     html += "function controlVal(cmd, val){fetch('/control?cmd='+cmd+'&val='+val);}";
-    html += "function updateSpeed(){";
+    html += "function sendSpeed(v){fetch('/control?cmd=SP&val='+v+'&_='+Date.now());}";
+    html += "function updateSpeed(force){";
     html += "var speed = document.getElementById('speed').value;";
     html += "document.getElementById('speedValue').innerHTML = speed;";
-    html += "fetch('/control?cmd=SP&val='+speed);}";
+    html += "if(force){sendSpeed(speed);return;}";
+    html += "if(speedTimer){clearTimeout(speedTimer);}";
+    html += "speedTimer=setTimeout(function(){sendSpeed(speed);},80);}";
     html += "function updateParam(key, sliderId, valueId){";
     html += "var v = document.getElementById(sliderId).value;";
     html += "document.getElementById(valueId).innerHTML = v;";

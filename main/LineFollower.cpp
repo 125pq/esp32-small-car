@@ -50,10 +50,16 @@ void LineFollower::stop() {
 }
 
 void LineFollower::setSpeed(float speed) {
-    float normalizedSpeed = constrain(speed, 0.05f, 1.0f);
+    float normalizedSpeed = constrain(speed, 0.0f, 1.0f);
+    if (normalizedSpeed <= DEAD_ZONE) {
+        baseSpeed = 0.0f;
+        turnSpeed = 0.0f;
+        return;
+    }
+
     baseSpeed = normalizedSpeed * MAX_LINEAR_SPEED;
     turnSpeed = constrain(normalizedSpeed * MAX_ROTATION_SPEED,
-                          MAX_ROTATION_SPEED * 0.2f,
+                          MAX_ROTATION_SPEED * 0.12f,
                           MAX_ROTATION_SPEED);
 }
 
