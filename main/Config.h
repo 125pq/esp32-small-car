@@ -86,12 +86,12 @@
 #define LF_OBSTACLE_DISTANCE_CM 8.0f     // 巡线时触发避障的距离阈值 (cm)
 #define LF_OBSTACLE_RETREAT_MS 450UL     // 遇障后左后退持续时间 (ms)
 #define LF_OBSTACLE_MEASURE_INTERVAL_MS 80UL // 巡线时超声测距周期 (ms)
-#define LF_DEBUG_PATTERN 1                // 临时调试：打印巡线pattern与命中分支（0-关闭，1-开启）
+#define LF_DEBUG_PATTERN 0                // 临时调试：打印巡线pattern与命中分支（0-关闭，1-开启）
 #define LF_DEBUG_PRINT_INTERVAL_MS 120UL  // 调试打印最小间隔 (ms)
 
 // Web手动旋转补偿参数
 #define WEB_ROTATE_BOOST 2.60f            // 旋转总增益，解决旋转明显慢于直行
-#define WEB_ROTATE_LEFT_GAIN 1.15f        // 左旋补偿增益
+#define WEB_ROTATE_LEFT_GAIN 1.00f        // 左旋补偿增益
 #define WEB_ROTATE_RIGHT_GAIN 1.00f       // 右旋补偿增益
 
 /**

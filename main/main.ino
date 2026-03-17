@@ -32,7 +32,7 @@ LineTracker lineTracker;         // 巡线传感器
 Display display;                 // OLED显示屏
 MecanumControl mecanumControl(motor, mpu6050);  // 麦轮运动控制器
 WebControl webControl(mecanumControl);          // Web服务器控制器
-LineFollower lineFollower(lineTracker, mecanumControl, &ultrasonic); // 巡线控制器（内置遇障后左后退）
+LineFollower lineFollower(lineTracker, mecanumControl, &ultrasonic, &mpu6050); // 巡线控制器（内置遇障后左后退）
 ObstacleAvoidance obstacleAvoidance(ultrasonic, mecanumControl); // 避障控制器
 
 /**
@@ -96,6 +96,9 @@ void loop() {
     // ! 处理Web客户端请求
     webControl.handleClient();
 
+    // ! 先更新IMU，保证巡线逻辑读取到当前帧角度
+    mpu6050.update();
+
     // ! 寻线控制
     lineFollower.update();
     // ! 避障控制
@@ -106,7 +109,6 @@ void loop() {
     mecanumControl.update();
 
     // ! 更新显示信息
-    mpu6050.update();
     float vx, vy, omega;
     mecanumControl.getTargetVelocity(vx, vy, omega);
     display.showMecanumInfo(

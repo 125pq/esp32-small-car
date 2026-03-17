@@ -17,8 +17,8 @@
 // Bit 2: S3 (中右)
 // Bit 3: S4 (最右)
 
-LineFollower::LineFollower(LineTracker& tracker, MecanumControl& control, Ultrasonic* ultrasonicSensor) 
-    : lineTracker(tracker), mecanumControl(control), ultrasonic(ultrasonicSensor), running(false) {
+LineFollower::LineFollower(LineTracker& tracker, MecanumControl& control, Ultrasonic* ultrasonicSensor, MPU6050* imuSensor) 
+    : lineTracker(tracker), mecanumControl(control), ultrasonic(ultrasonicSensor), imu(imuSensor), running(false) {
     baseSpeed = 0.5 * MAX_LINEAR_SPEED;   // 基础前进速度
     turnSpeed = 0.7 * MAX_ROTATION_SPEED; // 转向速度上限（提高默认转向力度）
     resetTuningToDefault();
@@ -29,6 +29,12 @@ LineFollower::LineFollower(LineTracker& tracker, MecanumControl& control, Ultras
     rightTurning = false;
     rightTurnArmed = true;
     rightTurnStartTime = 0;
+    rightTurnStartYawDeg = 0.0f;
+    rightTurnTargetDeg = 90.0f;
+    rightTurnStopDeg = 3.0f;
+    rightTurnStopGyroDegPerSec = 8.0f;
+    rightTurnTimeoutMs = 1400UL;
+    rightTurnStableCount = 0;
 }
 
 void LineFollower::start() {
@@ -40,6 +46,8 @@ void LineFollower::start() {
     rightTurning = false;
     rightTurnArmed = true;
     rightTurnStartTime = 0;
+    rightTurnStartYawDeg = 0.0f;
+    rightTurnStableCount = 0;
     Serial.println("Line Follower Started");
 }
 
@@ -50,6 +58,8 @@ void LineFollower::stop() {
     rightTurning = false;
     rightTurnArmed = true;
     rightTurnStartTime = 0;
+    rightTurnStartYawDeg = 0.0f;
+    rightTurnStableCount = 0;
     mecanumControl.setTargetVelocity(0, 0, 0);
     Serial.println("Line Follower Stopped");
 }
@@ -58,6 +68,10 @@ void LineFollower::setUltrasonic(Ultrasonic* ultrasonicSensor) {
     ultrasonic = ultrasonicSensor;
     lastObstacleMeasureTime = 0;
     lastObstacleDistance = 400.0f;
+}
+
+void LineFollower::setImu(MPU6050* imuSensor) {
+    imu = imuSensor;
 }
 
 void LineFollower::setSpeed(float speed) {
@@ -178,6 +192,78 @@ bool LineFollower::isObstacleTooClose(unsigned long now) {
     return lastObstacleDistance > 0.0f && lastObstacleDistance < obstacleDistanceCm;
 }
 
+float LineFollower::wrapDeg180(float deg) {
+    while (deg > 180.0f) {
+        deg -= 360.0f;
+    }
+    while (deg < -180.0f) {
+        deg += 360.0f;
+    }
+    return deg;
+}
+
+void LineFollower::startRightTurnByImu(unsigned long now) {
+    rightTurning = true;
+    rightTurnArmed = false;
+    rightTurnStartTime = now;
+    rightTurnStableCount = 0;
+
+    if (imu != nullptr) {
+        imu->update();
+        rightTurnStartYawDeg = imu->getAngleZ();
+    } else {
+        rightTurnStartYawDeg = 0.0f;
+    }
+}
+
+bool LineFollower::updateRightTurnByImu(unsigned long now) {
+    if (imu == nullptr) {
+        if (now - rightTurnStartTime < rightTurn90Ms) {
+            float turnOmega = -turnSpeed * rightTurnOmegaRatio;
+            turnOmega = constrain(turnOmega, -MAX_ROTATION_SPEED, MAX_ROTATION_SPEED);
+            mecanumControl.setTargetVelocity(0, 0, turnOmega);
+            return false;
+        }
+        return true;
+    }
+
+    imu->update();
+    float yawDeg = imu->getAngleZ();
+    float gyroZDegPerSec = imu->getGyroZ();
+
+    float turnedDeg = fabs(wrapDeg180(yawDeg - rightTurnStartYawDeg));
+    float remainDeg = rightTurnTargetDeg - turnedDeg;
+
+    bool angleReady = remainDeg <= rightTurnStopDeg;
+    if (angleReady) {
+        // 已接近目标角，先停转等待角速度衰减，避免过冲持续扩大。
+        mecanumControl.setTargetVelocity(0, 0, 0);
+    } else {
+        float omegaScale = constrain(remainDeg / rightTurnTargetDeg, 0.30f, 1.00f);
+        float turnOmega = -turnSpeed * rightTurnOmegaRatio * omegaScale;
+        turnOmega = constrain(turnOmega, -MAX_ROTATION_SPEED, MAX_ROTATION_SPEED);
+        mecanumControl.setTargetVelocity(0, 0, turnOmega);
+    }
+
+    bool gyroReady = fabs(gyroZDegPerSec) <= rightTurnStopGyroDegPerSec;
+
+    if (angleReady && gyroReady) {
+        rightTurnStableCount++;
+    } else {
+        rightTurnStableCount = 0;
+    }
+
+    if (rightTurnStableCount >= 3) {
+        return true;
+    }
+
+    if (now - rightTurnStartTime >= rightTurnTimeoutMs) {
+        return true;
+    }
+
+    return false;
+}
+
 void LineFollower::update() {
     if (!running) return;
 
@@ -202,10 +288,7 @@ void LineFollower::update() {
     }
 
     if (rightTurning) {
-        if (now - rightTurnStartTime < rightTurn90Ms) {
-            float turnOmega = -turnSpeed * rightTurnOmegaRatio;
-            turnOmega = constrain(turnOmega, -turnSpeed, turnSpeed);
-            mecanumControl.setTargetVelocity(0, 0, turnOmega);
+        if (!updateRightTurnByImu(now)) {
             return;
         }
         rightTurning = false;
@@ -260,15 +343,13 @@ void LineFollower::update() {
     }
 
     if (pattern == 0b1000 && rightTurnArmed) {
-        rightTurning = true;
-        rightTurnArmed = false;
-        rightTurnStartTime = now;
-        float turnOmega = -turnSpeed * rightTurnOmegaRatio;
-        turnOmega = constrain(turnOmega, -turnSpeed, turnSpeed);
+        startRightTurnByImu(now);
 #if defined(LF_DEBUG_PATTERN) && LF_DEBUG_PATTERN
         logPatternDecision(1, "RIGHT_TURN_TRIGGER");
 #endif
-        mecanumControl.setTargetVelocity(0, 0, turnOmega);
+        if (rightTurning) {
+            updateRightTurnByImu(now);
+        }
         return;
     }
 

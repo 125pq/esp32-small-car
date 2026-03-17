@@ -11,6 +11,7 @@
 #include "LineTracker.h"
 #include "MecanumControl.h"
 #include "Ultrasonic.h"
+#include <MPU6050_tockn.h>
 
 class LineFollower {
 public:
@@ -20,12 +21,17 @@ public:
      * @param control 麦轮控制引用
         * @param ultrasonicSensor 超声波传感器（可选）
      */
-    LineFollower(LineTracker& tracker, MecanumControl& control, Ultrasonic* ultrasonicSensor = nullptr);
+    LineFollower(LineTracker& tracker, MecanumControl& control, Ultrasonic* ultrasonicSensor = nullptr, MPU6050* imuSensor = nullptr);
 
     /**
         * @brief 设置/更新超声波传感器引用
         */
     void setUltrasonic(Ultrasonic* ultrasonicSensor);
+
+    /**
+     * @brief 设置/更新IMU传感器引用
+     */
+    void setImu(MPU6050* imuSensor);
 
     /**
      * @brief 开始寻线
@@ -75,6 +81,7 @@ private:
     LineTracker& lineTracker;
     MecanumControl& mecanumControl;
     Ultrasonic* ultrasonic;
+    MPU6050* imu;
     bool running;
     
     // 基础速度参数
@@ -100,10 +107,20 @@ private:
     unsigned long lastObstacleMeasureTime;
     float lastObstacleDistance;
 
-    // 0111 右转路口动作状态
+    // 右转路口动作状态
     bool rightTurning;
     bool rightTurnArmed;
     unsigned long rightTurnStartTime;
+    float rightTurnStartYawDeg;
+    float rightTurnTargetDeg;
+    float rightTurnStopDeg;
+    float rightTurnStopGyroDegPerSec;
+    unsigned long rightTurnTimeoutMs;
+    uint8_t rightTurnStableCount;
+
+    static float wrapDeg180(float deg);
+    void startRightTurnByImu(unsigned long now);
+    bool updateRightTurnByImu(unsigned long now);
 
     bool isObstacleTooClose(unsigned long now);
 };
