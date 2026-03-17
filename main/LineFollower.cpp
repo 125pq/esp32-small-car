@@ -35,6 +35,15 @@ LineFollower::LineFollower(LineTracker& tracker, MecanumControl& control, Ultras
     rightTurnStopGyroDegPerSec = 8.0f;
     rightTurnTimeoutMs = 1400UL;
     rightTurnStableCount = 0;
+    postObstacleMode = false;
+    garageMoving = false;
+    garageDone = false;
+    garageMoveStartTime = 0;
+    garageMoveMs = LF_GARAGE_MOVE_MS;
+    garageMoveVxRatio = LF_GARAGE_MOVE_VX_RATIO;
+    garageMoveVyRatio = LF_GARAGE_MOVE_VY_RATIO;
+    finishLineConfirmFrames = LF_FINISH_LINE_CONFIRM_FRAMES;
+    finishLineConfirmCount = 0;
 }
 
 void LineFollower::start() {
@@ -48,6 +57,11 @@ void LineFollower::start() {
     rightTurnStartTime = 0;
     rightTurnStartYawDeg = 0.0f;
     rightTurnStableCount = 0;
+    postObstacleMode = false;
+    garageMoving = false;
+    garageDone = false;
+    garageMoveStartTime = 0;
+    finishLineConfirmCount = 0;
     Serial.println("Line Follower Started");
 }
 
@@ -60,6 +74,11 @@ void LineFollower::stop() {
     rightTurnStartTime = 0;
     rightTurnStartYawDeg = 0.0f;
     rightTurnStableCount = 0;
+    postObstacleMode = false;
+    garageMoving = false;
+    garageDone = false;
+    garageMoveStartTime = 0;
+    finishLineConfirmCount = 0;
     mecanumControl.setTargetVelocity(0, 0, 0);
     Serial.println("Line Follower Stopped");
 }
@@ -269,6 +288,22 @@ void LineFollower::update() {
 
     unsigned long now = millis();
 
+    if (garageMoving) {
+        if (now - garageMoveStartTime < garageMoveMs) {
+            // 截止线后执行一次右前入库动作
+            float vxCmd = baseSpeed * garageMoveVxRatio;
+            float vyCmd = -baseSpeed * garageMoveVyRatio;
+            mecanumControl.setTargetVelocity(vxCmd, vyCmd, 0);
+            return;
+        }
+
+        garageMoving = false;
+        mecanumControl.setTargetVelocity(0, 0, 0);
+        running = false;
+        Serial.println("Line Follower Finished: Garage parked");
+        return;
+    }
+
     // 巡线模式内置简易避障：遇障先左后退，再恢复巡线。
     if (obstacleRetreating) {
         if (now - obstacleRetreatStartTime < obstacleRetreatMs) {
@@ -282,6 +317,8 @@ void LineFollower::update() {
     }
 
     if (isObstacleTooClose(now)) {
+        // 一旦遇到障碍，后续赛段将 0000 视作截止线入库触发。
+        postObstacleMode = true;
         obstacleRetreating = true;
         obstacleRetreatStartTime = now;
         mecanumControl.setTargetVelocity(-baseSpeed, baseSpeed * 2, 0);
@@ -314,6 +351,30 @@ void LineFollower::update() {
                       (s2 ? 0b0100 : 0) |
                       (s3 ? 0b0010 : 0) |
                       (s4 ? 0b0001 : 0);
+
+    if (postObstacleMode && !garageDone) {
+        if (pattern == 0b0000) {
+            if (finishLineConfirmCount < finishLineConfirmFrames) {
+                finishLineConfirmCount++;
+            }
+        } else {
+            finishLineConfirmCount = 0;
+        }
+
+        if (finishLineConfirmCount >= finishLineConfirmFrames) {
+            garageDone = true;
+            garageMoving = true;
+            garageMoveStartTime = now;
+#if defined(LF_DEBUG_PATTERN) && LF_DEBUG_PATTERN
+            static unsigned long lastGarageLogTime = 0;
+            if (now - lastGarageLogTime > LF_DEBUG_PRINT_INTERVAL_MS) {
+                Serial.println("[LF] finish line detected after obstacle, move to garage");
+                lastGarageLogTime = now;
+            }
+#endif
+            return;
+        }
+    }
 
 #if defined(LF_DEBUG_PATTERN) && LF_DEBUG_PATTERN
     static uint8_t lastPattern = 0xFF;
@@ -362,7 +423,7 @@ void LineFollower::update() {
 
     switch (pattern) {
         case 0b1001: // 在线正中
-        case 0b0000: // 十字路口，直行通过
+        case 0b0000: // 十字路口，前段直行通过（后段由postObstacleMode提前拦截）
             mappedDecision = 2;
             mappedLabel = "STRAIGHT";
             mappedOmega = 0.0f;

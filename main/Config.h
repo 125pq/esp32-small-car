@@ -86,6 +86,10 @@
 #define LF_OBSTACLE_DISTANCE_CM 8.0f     // 巡线时触发避障的距离阈值 (cm)
 #define LF_OBSTACLE_RETREAT_MS 450UL     // 遇障后左后退持续时间 (ms)
 #define LF_OBSTACLE_MEASURE_INTERVAL_MS 80UL // 巡线时超声测距周期 (ms)
+#define LF_FINISH_LINE_CONFIRM_FRAMES 2U // 避障后将0000判定为截止线时的连续确认帧数
+#define LF_GARAGE_MOVE_MS 900UL           // 截止线触发后右前入库动作时长 (ms)
+#define LF_GARAGE_MOVE_VX_RATIO 0.45f     // 右前入库动作前向速度比例
+#define LF_GARAGE_MOVE_VY_RATIO 0.85f     // 右前入库动作右向速度比例（内部取负号为右移）
 #define LF_DEBUG_PATTERN 0                // 临时调试：打印巡线pattern与命中分支（0-关闭，1-开启）
 #define LF_DEBUG_PRINT_INTERVAL_MS 120UL  // 调试打印最小间隔 (ms)
 

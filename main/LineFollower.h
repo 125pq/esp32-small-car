@@ -118,6 +118,17 @@ private:
     unsigned long rightTurnTimeoutMs;
     uint8_t rightTurnStableCount;
 
+    // 避障后的赛道后半段逻辑：0000 由十字直行改为截止线入库
+    bool postObstacleMode;
+    bool garageMoving;
+    bool garageDone;
+    unsigned long garageMoveStartTime;
+    unsigned long garageMoveMs;
+    float garageMoveVxRatio;
+    float garageMoveVyRatio;
+    uint8_t finishLineConfirmFrames;
+    uint8_t finishLineConfirmCount;
+
     static float wrapDeg180(float deg);
     void startRightTurnByImu(unsigned long now);
     bool updateRightTurnByImu(unsigned long now);
