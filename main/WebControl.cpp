@@ -109,9 +109,11 @@ void WebControl::handleControl() {
     } else if (cmd == "BR") {
         mecanumControl.setTargetVelocity(-currentSpeed * MAX_LINEAR_SPEED, -currentSpeed * MAX_LINEAR_SPEED, 0);
     } else if (cmd == "CL") {
-        mecanumControl.setTargetVelocity(0, 0, currentSpeed * MAX_ROTATION_SPEED);
+        float omegaCmd = currentSpeed * MAX_ROTATION_SPEED * WEB_ROTATE_BOOST * WEB_ROTATE_LEFT_GAIN;
+        mecanumControl.setTargetVelocity(0, 0, omegaCmd);
     } else if (cmd == "CR") {
-        mecanumControl.setTargetVelocity(0, 0, -currentSpeed * MAX_ROTATION_SPEED);
+        float omegaCmd = currentSpeed * MAX_ROTATION_SPEED * WEB_ROTATE_BOOST * WEB_ROTATE_RIGHT_GAIN;
+        mecanumControl.setTargetVelocity(0, 0, -omegaCmd);
     } else if (cmd == "S") {
         mecanumControl.setTargetVelocity(0, 0, 0);
         if (lineFollower != nullptr) {
@@ -217,20 +219,19 @@ String WebControl::generateHTML() {
     html += "<input type='range' id='speed' class='slider' min='0' max='100' value='" + String(currentSpeedInt) + "' oninput='updateSpeed()' onchange='updateSpeed(true)'>";
     html += "<p>Speed: <span id='speedValue'>" + String(currentSpeedInt) + "</span>%</p></div>";
 
-    // 巡线参数调节
-    html += "<div class='control'><h2>Line Follow Tuning</h2>";
-    html += "<div class='param'><label>Error Filter Alpha: <span id='v_efa'>0</span></label><input type='range' id='p_efa' class='slider' min='0.30' max='0.98' step='0.01' oninput=\"updateParam('efa','p_efa','v_efa')\"></div>";
-    html += "<div class='param'><label>Damping Gain: <span id='v_dg'>0</span></label><input type='range' id='p_dg' class='slider' min='0.00' max='0.20' step='0.005' oninput=\"updateParam('dg','p_dg','v_dg')\"></div>";
-    html += "<div class='param'><label>Omega Smooth Alpha: <span id='v_osa'>0</span></label><input type='range' id='p_osa' class='slider' min='0.30' max='0.98' step='0.01' oninput=\"updateParam('osa','p_osa','v_osa')\"></div>";
-    html += "<div class='param'><label>Turn Gain: <span id='v_tg'>0</span></label><input type='range' id='p_tg' class='slider' min='0.20' max='1.50' step='0.01' oninput=\"updateParam('tg','p_tg','v_tg')\"></div>";
-    html += "<div class='param'><label>D-Error Clamp: <span id='v_dec'>0</span></label><input type='range' id='p_dec' class='slider' min='1' max='30' step='1' oninput=\"updateParam('dec','p_dec','v_dec')\"></div>";
-    html += "<div class='param'><label>Speed Reduction Gain: <span id='v_srg'>0</span></label><input type='range' id='p_srg' class='slider' min='0.00' max='0.95' step='0.01' oninput=\"updateParam('srg','p_srg','v_srg')\"></div>";
-    html += "<div class='param'><label>Min Forward Ratio: <span id='v_mfr'>0</span></label><input type='range' id='p_mfr' class='slider' min='0.10' max='0.95' step='0.01' oninput=\"updateParam('mfr','p_mfr','v_mfr')\"></div>";
-    html += "<div class='param'><label>Lost Hold (ms): <span id='v_lhm'>0</span></label><input type='range' id='p_lhm' class='slider' min='50' max='2000' step='10' oninput=\"updateParam('lhm','p_lhm','v_lhm')\"></div>";
-    html += "<div class='param'><label>Lost Timeout (ms): <span id='v_ltm'>0</span></label><input type='range' id='p_ltm' class='slider' min='100' max='6000' step='20' oninput=\"updateParam('ltm','p_ltm','v_ltm')\"></div>";
-    html += "<div class='param'><label>Lost Omega Decay: <span id='v_lod'>0</span></label><input type='range' id='p_lod' class='slider' min='0.50' max='0.99' step='0.01' oninput=\"updateParam('lod','p_lod','v_lod')\"></div>";
-    html += "<div class='param'><label>Search Omega Ratio: <span id='v_sor'>0</span></label><input type='range' id='p_sor' class='slider' min='0.20' max='1.20' step='0.01' oninput=\"updateParam('sor','p_sor','v_sor')\"></div>";
-    html += "<div class='param'><label>Search Speed Ratio: <span id='v_ssr'>0</span></label><input type='range' id='p_ssr' class='slider' min='0.10' max='0.90' step='0.01' oninput=\"updateParam('ssr','p_ssr','v_ssr')\"></div>";
+    // 基础循迹参数调节
+    html += "<div class='control'><h2>Line Follow Basic Params</h2>";
+    html += "<div class='param'><label>Slight Turn Ratio: <span id='v_pst'>0</span></label><input type='range' id='p_pst' class='slider' min='0.10' max='2' step='0.01' oninput=\"updateParam('pst','p_pst','v_pst')\"></div>";
+    html += "<div class='param'><label>Medium Turn Ratio: <span id='v_pmt'>0</span></label><input type='range' id='p_pmt' class='slider' min='0.20' max='2.5' step='0.01' oninput=\"updateParam('pmt','p_pmt','v_pmt')\"></div>";
+    html += "<div class='param'><label>Large Turn Ratio: <span id='v_plt'>0</span></label><input type='range' id='p_plt' class='slider' min='0.30' max='5' step='0.01' oninput=\"updateParam('plt','p_plt','v_plt')\"></div>";
+    html += "<div class='param'><label>Slight Speed Ratio: <span id='v_pss'>0</span></label><input type='range' id='p_pss' class='slider' min='0.30' max='1.00' step='0.01' oninput=\"updateParam('pss','p_pss','v_pss')\"></div>";
+    html += "<div class='param'><label>Medium Speed Ratio: <span id='v_pms'>0</span></label><input type='range' id='p_pms' class='slider' min='0.30' max='1.00' step='0.01' oninput=\"updateParam('pms','p_pms','v_pms')\"></div>";
+    html += "<div class='param'><label>Large Speed Ratio: <span id='v_pls'>0</span></label><input type='range' id='p_pls' class='slider' min='0.20' max='1.00' step='0.01' oninput=\"updateParam('pls','p_pls','v_pls')\"></div>";
+    html += "<div class='param'><label>Right Turn Omega Ratio: <span id='v_rto'>0</span></label><input type='range' id='p_rto' class='slider' min='0.30' max='1.20' step='0.01' oninput=\"updateParam('rto','p_rto','v_rto')\"></div>";
+    html += "<div class='param'><label>Right Turn 90ms: <span id='v_rtm'>0</span></label><input type='range' id='p_rtm' class='slider' min='200' max='2500' step='10' oninput=\"updateParam('rtm','p_rtm','v_rtm')\"></div>";
+    html += "<div class='param'><label>Obstacle Distance (cm): <span id='v_odc'>0</span></label><input type='range' id='p_odc' class='slider' min='3' max='50' step='0.5' oninput=\"updateParam('odc','p_odc','v_odc')\"></div>";
+    html += "<div class='param'><label>Obstacle Retreat (ms): <span id='v_orm'>0</span></label><input type='range' id='p_orm' class='slider' min='100' max='3000' step='10' oninput=\"updateParam('orm','p_orm','v_orm')\"></div>";
+    html += "<div class='param'><label>Obstacle Measure Interval (ms): <span id='v_omi'>0</span></label><input type='range' id='p_omi' class='slider' min='20' max='1000' step='10' oninput=\"updateParam('omi','p_omi','v_omi')\"></div>";
     html += "<button class='smallbtn' onclick='resetLineParams()'>Reset Line Params</button></div>";
     
     html += "<script>";
