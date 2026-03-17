@@ -1,7 +1,7 @@
 /**
  * @file Motor.cpp
  * @brief 电机控制模块实现文件
- * @author 喵屋
+ * @author 黄竞亿
  * @date 2025.12.4
  */
 

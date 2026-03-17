@@ -1,7 +1,7 @@
 /**
  * @file Config.h
  * @brief ESP32小车全局配置文件
- * @author 喵屋
+ * @author 黄竞亿
  * @date 2025.12.4
  */
 

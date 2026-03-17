@@ -1,7 +1,7 @@
 /**
  * @file LineFollower.cpp
  * @brief 寻线控制模块实现文件
- * @author Copilot
+ * @author 黄竞亿
  * @date 2026.3.2
  */
 

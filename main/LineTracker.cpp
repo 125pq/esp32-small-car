@@ -1,7 +1,7 @@
 /**
  * @file LineTracker.cpp
  * @brief 巡线传感器模块实现文件
- * @author 喵屋
+ * @author 黄竞亿
  * @date 2025.12.4
  */
 

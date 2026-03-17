@@ -1,7 +1,7 @@
 /**
  * @file WebControl.cpp
  * @brief Web服务器控制模块实现文件
- * @author 喵屋
+ * @author 黄竞亿
  * @date 2025.12.4
  */
 

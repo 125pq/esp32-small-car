@@ -1,7 +1,7 @@
 /**
  * @file Display.h
  * @brief OLED显示模块头文件
- * @author 喵屋
+ * @author 黄竞亿
  * @date 2025.12.4
  */
 
