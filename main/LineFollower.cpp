@@ -19,7 +19,11 @@
 LineFollower::LineFollower(LineTracker& tracker, MecanumControl& control) 
     : lineTracker(tracker), mecanumControl(control), running(false) {
     baseSpeed = 0.5 * MAX_LINEAR_SPEED;   // 基础前进速度
-    turnSpeed = 1.0;                      // NEW: 降低P系数，约为原来的40%
+    turnSpeed = 0.5 * MAX_ROTATION_SPEED; // 转向速度上限
+    filteredError = 0.0f;
+    prevError = 0.0f;
+    lastOmegaCmd = 0.0f;
+    lastControlTime = 0;
     lastLineTime = 0;
     isLost = false;
 }
@@ -27,24 +31,29 @@ LineFollower::LineFollower(LineTracker& tracker, MecanumControl& control)
 void LineFollower::start() {
     running = true;
     lastLineTime = millis();
+    lastControlTime = lastLineTime;
     isLost = false;
+    filteredError = 0.0f;
+    prevError = 0.0f;
+    lastOmegaCmd = 0.0f;
     Serial.println("Line Follower Started");
 }
 
 void LineFollower::stop() {
     running = false;
+    filteredError = 0.0f;
+    prevError = 0.0f;
+    lastOmegaCmd = 0.0f;
     mecanumControl.setTargetVelocity(0, 0, 0);
     Serial.println("Line Follower Stopped");
 }
 
 void LineFollower::setSpeed(float speed) {
-    baseSpeed = speed * MAX_LINEAR_SPEED;
-    // turnSpeed 稍微随速度增加，但整体比例降低
-    // 假设 speed 是 0.5 (中速), MAX_LINEAR 0.4. baseSpeed = 0.2.
-    // turnSpeed = 0.8 + 0.4 = 1.2 rad/s. 对于 error=3 (最大偏离)，omega=3.6 rad/s (太快了!)
-    // error 范围约 -3 到 3. 
-    // 期望最大修正角速度约 1.0 - 1.5 rad/s
-    turnSpeed = (0.3 + (speed * 0.5)); // 修改系数
+    float normalizedSpeed = constrain(speed, 0.05f, 1.0f);
+    baseSpeed = normalizedSpeed * MAX_LINEAR_SPEED;
+    turnSpeed = constrain(normalizedSpeed * MAX_ROTATION_SPEED,
+                          MAX_ROTATION_SPEED * 0.2f,
+                          MAX_ROTATION_SPEED);
 }
 
 bool LineFollower::isRunning() {
@@ -54,6 +63,13 @@ bool LineFollower::isRunning() {
 void LineFollower::update() {
     if (!running) return;
 
+    unsigned long now = millis();
+    float dt = (now - lastControlTime) / 1000.0f;
+    if (lastControlTime == 0 || dt <= 0.0f || dt > 0.2f) {
+        dt = 0.02f;
+    }
+    lastControlTime = now;
+
     uint8_t state = lineTracker.getState();
     // state bits: S4 S3 S1 S2 (3 2 1 0)
 
@@ -61,55 +77,74 @@ void LineFollower::update() {
     bool s2 = (state >> 0) & 1; // S2 左内
     bool s3 = (state >> 2) & 1; // S3 右内
     bool s4 = (state >> 3) & 1; // S4 右外
-    
-    float error = 0;
-    int activeCount = 0;
-    
-    // 计算加权偏差 (S1:-3, S2:-1, S3:1, S4:3)
-    // 负值表示线在左侧（车偏右），正值表示线在右侧（车偏左）
-    if (s1) { error -= 3.0; activeCount++; }
-    if (s2) { error -= 1.0; activeCount++; }
-    if (s3) { error += 1.0; activeCount++; }
-    if (s4) { error += 3.0; activeCount++; }
-    
+
+    int activeCount = (s1 ? 1 : 0) + (s2 ? 1 : 0) + (s3 ? 1 : 0) + (s4 ? 1 : 0);
+
+    // 十字路口等全黑区域，优先直行穿过
+    if (activeCount == 4) {
+        lastLineTime = now;
+        isLost = false;
+        filteredError *= 0.5f;
+        prevError = filteredError;
+        lastOmegaCmd = 0.0f;
+        mecanumControl.setTargetVelocity(baseSpeed, 0, 0);
+        return;
+    }
+
     if (activeCount > 0) {
-        error /= activeCount; // 归一化误差，范围约 -3 到 +3
-        lastLineTime = millis();
-    } else {
-        // 未检测到线
-        if (millis() - lastLineTime < 150) {
-            // 短暂丢线（可能是虚线或传感器间隙），假设误差为0保持直行以平稳过渡
-            error = 0;
-        } else {
-            // 丢失过久，停止
-            mecanumControl.setTargetVelocity(0, 0, 0);
-            return;
+        // 连续误差：左负右正
+        float errorSum = 0.0f;
+        if (s1) errorSum -= 3.0f;
+        if (s2) errorSum -= 1.0f;
+        if (s3) errorSum += 1.0f;
+        if (s4) errorSum += 3.0f;
+
+        float rawError = errorSum / activeCount;
+        filteredError = LF_ERROR_FILTER_ALPHA * filteredError +
+                        (1.0f - LF_ERROR_FILTER_ALPHA) * rawError;
+
+        float dError = (filteredError - prevError) / dt;
+        dError = constrain(dError, -8.0f, 8.0f);
+        prevError = filteredError;
+
+        float omegaRaw = -(filteredError * turnSpeed * 0.85f + dError * LF_DAMPING_GAIN);
+        float omegaCmd = LF_OMEGA_SMOOTH_ALPHA * lastOmegaCmd +
+                         (1.0f - LF_OMEGA_SMOOTH_ALPHA) * omegaRaw;
+        omegaCmd = constrain(omegaCmd, -turnSpeed, turnSpeed);
+
+        float errorNorm = constrain(fabs(filteredError) / 3.0f, 0.0f, 1.0f);
+        float speedScale = 1.0f - (errorNorm * LF_SPEED_REDUCTION_GAIN);
+        speedScale = max(speedScale, LF_MIN_FORWARD_RATIO);
+        float vxCmd = baseSpeed * speedScale;
+
+        lastLineTime = now;
+        isLost = false;
+        lastOmegaCmd = omegaCmd;
+        mecanumControl.setTargetVelocity(vxCmd, 0, omegaCmd);
+        return;
+    }
+
+    // 丢线处理：短时保持，随后温和搜索，最后停止
+    isLost = true;
+    unsigned long lostDuration = now - lastLineTime;
+    if (lostDuration < LF_LOST_HOLD_MS) {
+        lastOmegaCmd *= LF_LOST_OMEGA_DECAY;
+        mecanumControl.setTargetVelocity(baseSpeed * 0.75f, 0, lastOmegaCmd);
+        return;
+    }
+
+    if (lostDuration < LF_LOST_TIMEOUT_MS) {
+        float searchDirection = (lastOmegaCmd >= 0.0f) ? 1.0f : -1.0f;
+        if (fabs(lastOmegaCmd) < DEAD_ZONE) {
+            searchDirection = (filteredError <= 0.0f) ? 1.0f : -1.0f;
         }
-    }
-    
-    // 如果是十字路口或大面积黑块（3个以上传感器触发）
-    if (activeCount >= 3) {
-        error = 0; // 视为直行
-    }
-
-    // P控制计算旋转量
-    // Error 范围约 -3.0 ~ +3.0
-    // Error < 0 (左侧触发) -> 需要左转 (Omega > 0)
-    // Error > 0 (右侧触发) -> 需要右转 (Omega < 0)
-    float omega = -error * turnSpeed; 
-    
-    // 限制最大旋转速度，防止飞车
-    omega = constrain(omega, -MAX_ROTATION_SPEED * 1.5, MAX_ROTATION_SPEED * 1.5);
-
-    // 动态速度调整：当急转弯（误差大）时降低线速度
-    float currentVx = baseSpeed;
-    if (abs(error) > 1.5) {
-        currentVx *= 0.4; // 遇到急弯大幅减速 (40%速度)
-    } else if (abs(error) > 0.8) { // 稍微偏离也减速
-        currentVx *= 0.7;
+        float searchOmega = searchDirection * turnSpeed * LF_SEARCH_OMEGA_RATIO;
+        float searchVx = baseSpeed * LF_SEARCH_SPEED_RATIO;
+        lastOmegaCmd = searchOmega;
+        mecanumControl.setTargetVelocity(searchVx, 0, searchOmega);
+        return;
     }
 
-    // 将计算出的线速度和角速度应用到麦轮控制器
-    // 麦轮运动学模型会自动将其转换为左右轮的速度差
-    mecanumControl.setTargetVelocity(currentVx, 0, omega);
+    lastOmegaCmd = 0.0f;
+    mecanumControl.setTargetVelocity(0, 0, 0);
 }

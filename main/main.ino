@@ -101,8 +101,8 @@ void loop() {
     // ! 避障控制
     obstacleAvoidance.update();
 
-    // ! 
-    // ! 执行麦轮PID控制
+    // !
+    // ! 执行麦轮控制更新
     mecanumControl.update();
 
     // ! 更新显示信息

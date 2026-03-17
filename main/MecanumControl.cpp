@@ -7,33 +7,15 @@
 
 #include "MecanumControl.h"
 
-MecanumControl::MecanumControl(Motor& motor, MPU6050& mpu) 
+MecanumControl::MecanumControl(Motor& motor, MPU6050& mpu)
     : motor(motor), mpu6050(mpu),
       targetVx(0), targetVy(0), targetOmega(0),
-      angleSetpoint(0), angleInput(0), angleOutput(0),
-      speedSetpoint(0), speedInput(0), speedOutput(0),
-      filteredAngleZ(0), filteredGyroZ(0),
-      filteredAccX(0), filteredAccY(0) {
-    
-    // 创建PID控制器
-    anglePID = new PID(&angleInput, &angleOutput, &angleSetpoint, 
-                      ANGLE_KP, ANGLE_KI, ANGLE_KD, DIRECT);
-    speedPID = new PID(&speedInput, &speedOutput, &speedSetpoint, 
-                      SPEED_KP, SPEED_KI, SPEED_KD, DIRECT);
-}
+      currentVx(0), currentVy(0), currentOmega(0), lastControlUpdate(0),
+      angleOutput(0) {}
 
 void MecanumControl::init() {
-    // 初始化角度PID控制器
-    anglePID->SetMode(AUTOMATIC);
-    anglePID->SetOutputLimits(-100, 100);
-    anglePID->SetSampleTime(20);
-    
-    // 初始化速度PID控制器
-    speedPID->SetMode(AUTOMATIC);
-    speedPID->SetOutputLimits(-255, 255);
-    speedPID->SetSampleTime(20);
-    
-    Serial.println("PID Controllers Initialized");
+    lastControlUpdate = millis();
+    Serial.println("Mecanum Controller Initialized");
 }
 
 void MecanumControl::setTargetVelocity(float vx, float vy, float omega) {
@@ -41,43 +23,42 @@ void MecanumControl::setTargetVelocity(float vx, float vy, float omega) {
     targetVx = (fabs(vx) < DEAD_ZONE) ? 0 : vx;
     targetVy = (fabs(vy) < DEAD_ZONE) ? 0 : vy;
     targetOmega = (fabs(omega) < DEAD_ZONE) ? 0 : omega;
-    
-    // 设置速度PID的目标值
-    speedSetpoint = sqrt(targetVx * targetVx + targetVy * targetVy);
-    
-    // 只有当目标速度非零时才更新角度设定值
-    if (speedSetpoint > DEAD_ZONE) {
-        mpu6050.update();
-        angleSetpoint = mpu6050.getAngleZ();
-    }
+
+    // 纯开环控制：不使用角度修正输出
+    angleOutput = 0;
 }
 
 void MecanumControl::update() {
-    // 如果所有目标速度都接近零，则停止电机
-    if (fabs(targetVx) < DEAD_ZONE && 
-        fabs(targetVy) < DEAD_ZONE && 
-        fabs(targetOmega) < DEAD_ZONE) {
+    unsigned long now = millis();
+    float dt = (now - lastControlUpdate) / 1000.0f;
+    if (lastControlUpdate == 0 || dt <= 0.0f || dt > 0.2f) {
+        dt = 0.02f;
+    }
+    lastControlUpdate = now;
+
+    float linearDelta = COMMAND_LINEAR_SLEW_RATE * dt;
+    float omegaDelta = COMMAND_OMEGA_SLEW_RATE * dt;
+
+    currentVx = applySlewLimit(currentVx, targetVx, linearDelta);
+    currentVy = applySlewLimit(currentVy, targetVy, linearDelta);
+    currentOmega = applySlewLimit(currentOmega, targetOmega, omegaDelta);
+
+    // 如果目标和当前都接近零，直接停机
+    if (fabs(targetVx) < DEAD_ZONE && fabs(targetVy) < DEAD_ZONE && fabs(targetOmega) < DEAD_ZONE &&
+        fabs(currentVx) < DEAD_ZONE && fabs(currentVy) < DEAD_ZONE && fabs(currentOmega) < DEAD_ZONE) {
+        currentVx = 0.0f;
+        currentVy = 0.0f;
+        currentOmega = 0.0f;
         motor.stop();
+        angleOutput = 0;
         return;
     }
     
-    // 更新MPU6050数据
-    mpu6050.update();
-    
-    // 应用低通滤波器到MPU6050数据
-    filteredAngleZ = ANGLE_FILTER * filteredAngleZ + 
-                     (1 - ANGLE_FILTER) * mpu6050.getAngleZ();
-    filteredGyroZ = GYRO_FILTER * filteredGyroZ + 
-                    (1 - GYRO_FILTER) * mpu6050.getGyroZ();
-    
-    // 角度PID控制（保持或转向到目标角度）
-    angleInput = filteredAngleZ;
-    anglePID->Compute();
-    
-    // 应用PID修正到目标运动状态
-    float adjustedVx = targetVx;
-    float adjustedVy = targetVy;
-    float adjustedOmega = targetOmega;
+    // 纯开环速度控制
+    float adjustedVx = currentVx;
+    float adjustedVy = currentVy;
+    float adjustedOmega = currentOmega;
+    angleOutput = 0;
     
     // 计算麦轮运动学
     float w1, w2, w3, w4;
@@ -97,6 +78,17 @@ void MecanumControl::update() {
     
     // 设置电机速度
     motor.setSpeed(pwm1, pwm2, pwm3, pwm4);
+}
+
+float MecanumControl::applySlewLimit(float current, float target, float maxDelta) {
+    float delta = target - current;
+    if (delta > maxDelta) {
+        return current + maxDelta;
+    }
+    if (delta < -maxDelta) {
+        return current - maxDelta;
+    }
+    return target;
 }
 
 void MecanumControl::mecanumKinematics(float Vx, float Vy, float omega, 

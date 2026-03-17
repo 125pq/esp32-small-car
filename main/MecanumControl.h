@@ -10,13 +10,12 @@
 
 #include <Arduino.h>
 #include <MPU6050_tockn.h>
-#include <PID_v1.h>
 #include "Config.h"
 #include "Motor.h"
 
 /**
  * @class MecanumControl
- * @brief 麦轮小车运动控制类（包含运动学模型和PID控制）
+ * @brief 麦轮小车运动控制类（包含运动学模型）
  */
 class MecanumControl {
 public:
@@ -41,7 +40,7 @@ public:
     void setTargetVelocity(float vx, float vy, float omega);
 
     /**
-     * @brief 执行PID控制（在loop中调用）
+     * @brief 执行运动控制更新（在loop中调用）
      */
     void update();
 
@@ -51,7 +50,7 @@ public:
     void getTargetVelocity(float& vx, float& vy, float& omega);
 
     /**
-     * @brief 获取PID输出
+     * @brief 获取角度输出（当前固定为0）
      */
     float getAngleOutput();
 
@@ -64,17 +63,19 @@ private:
     float targetVy;
     float targetOmega;
 
-    // PID控制器
-    double angleSetpoint, angleInput, angleOutput;
-    PID* anglePID;
-    
-    double speedSetpoint, speedInput, speedOutput;
-    PID* speedPID;
+    // 平滑后的实际执行速度
+    float currentVx;
+    float currentVy;
+    float currentOmega;
+    unsigned long lastControlUpdate;
 
-    // 滤波后的传感器数据
-    float filteredAngleZ;
-    float filteredGyroZ;
-    float filteredAccX, filteredAccY;
+    // 保留输出接口兼容显示模块
+    float angleOutput;
+
+    /**
+     * @brief 斜率限制函数
+     */
+    float applySlewLimit(float current, float target, float maxDelta);
 
     /**
      * @brief 麦轮运动学模型

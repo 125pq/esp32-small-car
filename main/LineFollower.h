@@ -53,7 +53,13 @@ private:
     
     // 基础速度参数
     float baseSpeed;
-    float turnSpeed; 
+    float turnSpeed;
+
+    // 平滑循迹状态
+    float filteredError;
+    float prevError;
+    float lastOmegaCmd;
+    unsigned long lastControlTime;
 
     // 虚线处理
     unsigned long lastLineTime;  // 上次检测到线的时间

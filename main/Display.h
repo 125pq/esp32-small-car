@@ -59,7 +59,7 @@ public:
      * @param vx X轴速度
      * @param vy Y轴速度
      * @param omega 旋转速度
-     * @param angleOutput 角度PID输出
+     * @param angleOutput 角度输出（当前固定为0）
      * @param accX X轴加速度
      * @param accY Y轴加速度
      * @param accZ Z轴加速度

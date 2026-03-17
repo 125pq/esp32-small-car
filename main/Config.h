@@ -64,23 +64,31 @@
 #define LY 0.08            // 左右轮距的一半 (米)
 
 /**
- * @brief PID控制参数
+ * @brief 运动控制参数
  */
-#define ANGLE_KP 2.0       // 角度PID比例系数
-#define ANGLE_KI 0.01      // 角度PID积分系数
-#define ANGLE_KD 0.0       // 角度PID微分系数
+#define DEAD_ZONE 0.01              // 死区阈值
 
-#define SPEED_KP 0.5       // 速度PID比例系数
-#define SPEED_KI 0.01      // 速度PID积分系数
-#define SPEED_KD 0.05      // 速度PID微分系数
+// 指令变化率限制（用于抑制电机抖动）
+#define COMMAND_LINEAR_SLEW_RATE 1.2f   // 线速度最大变化率 (m/s^2)
+#define COMMAND_OMEGA_SLEW_RATE 4.0f    // 角速度最大变化率 (rad/s^2)
 
-#define DEAD_ZONE 0.01      // 死区阈值
+// 循迹平滑控制参数
+#define LF_ERROR_FILTER_ALPHA 0.70f      // 误差低通滤波系数
+#define LF_DAMPING_GAIN 0.02f            // 微分阻尼系数
+#define LF_OMEGA_SMOOTH_ALPHA 0.70f      // 转向命令平滑系数
+#define LF_SPEED_REDUCTION_GAIN 0.55f    // 偏差增大时的降速比例
+#define LF_MIN_FORWARD_RATIO 0.45f       // 最低前进速度比例
+#define LF_LOST_HOLD_MS 180              // 短时丢线保持时间 (ms)
+#define LF_LOST_TIMEOUT_MS 900           // 丢线超时停止时间 (ms)
+#define LF_LOST_OMEGA_DECAY 0.88f        // 丢线保持阶段角速度衰减系数
+#define LF_SEARCH_OMEGA_RATIO 0.60f      // 丢线搜索角速度比例
+#define LF_SEARCH_SPEED_RATIO 0.35f      // 丢线搜索前进速度比例
 
 /**
  * @brief 速度限制参数
  */
 #define MAX_LINEAR_SPEED 0.4   // 最大线速度 (m/s)
-#define MAX_ROTATION_SPEED 1.0 // 最大旋转速度 (rad/s)
+#define MAX_ROTATION_SPEED 0.5 // 最大旋转速度 (rad/s)
 
 /**
  * @brief 滤波器参数
