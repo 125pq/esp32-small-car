@@ -120,10 +120,15 @@ private:
 
     // 避障后的赛道后半段逻辑：0000 由十字直行改为截止线入库
     bool postObstacleMode;
+    bool reverseFollowing;
     bool garageMoving;
     bool garageDone;
+    unsigned long reverseFollowStartTime;
     unsigned long garageMoveStartTime;
+    unsigned long obstacleRetreatMaxMs;
     unsigned long garageMoveMs;
+    float reverseFollowSpeedRatio;
+    float reverseLostlineVyRatio;
     float garageMoveVxRatio;
     float garageMoveVyRatio;
     uint8_t finishLineConfirmFrames;

@@ -36,10 +36,15 @@ LineFollower::LineFollower(LineTracker& tracker, MecanumControl& control, Ultras
     rightTurnTimeoutMs = 1400UL;
     rightTurnStableCount = 0;
     postObstacleMode = false;
+    reverseFollowing = false;
     garageMoving = false;
     garageDone = false;
+    reverseFollowStartTime = 0;
     garageMoveStartTime = 0;
+    obstacleRetreatMaxMs = LF_OBSTACLE_RETREAT_MAX_MS;
     garageMoveMs = LF_GARAGE_MOVE_MS;
+    reverseFollowSpeedRatio = LF_REVERSE_FOLLOW_SPEED_RATIO;
+    reverseLostlineVyRatio = LF_REVERSE_LOSTLINE_VY_RATIO;
     garageMoveVxRatio = LF_GARAGE_MOVE_VX_RATIO;
     garageMoveVyRatio = LF_GARAGE_MOVE_VY_RATIO;
     finishLineConfirmFrames = LF_FINISH_LINE_CONFIRM_FRAMES;
@@ -58,8 +63,10 @@ void LineFollower::start() {
     rightTurnStartYawDeg = 0.0f;
     rightTurnStableCount = 0;
     postObstacleMode = false;
+    reverseFollowing = false;
     garageMoving = false;
     garageDone = false;
+    reverseFollowStartTime = 0;
     garageMoveStartTime = 0;
     finishLineConfirmCount = 0;
     Serial.println("Line Follower Started");
@@ -75,8 +82,10 @@ void LineFollower::stop() {
     rightTurnStartYawDeg = 0.0f;
     rightTurnStableCount = 0;
     postObstacleMode = false;
+    reverseFollowing = false;
     garageMoving = false;
     garageDone = false;
+    reverseFollowStartTime = 0;
     garageMoveStartTime = 0;
     finishLineConfirmCount = 0;
     mecanumControl.setTargetVelocity(0, 0, 0);
@@ -306,19 +315,38 @@ void LineFollower::update() {
 
     // 巡线模式内置简易避障：遇障先左后退，再恢复巡线。
     if (obstacleRetreating) {
-        if (now - obstacleRetreatStartTime < obstacleRetreatMs) {
-            mecanumControl.setTargetVelocity(-baseSpeed, baseSpeed * 2, 0);
-            
+        mecanumControl.setTargetVelocity(-baseSpeed, baseSpeed * 2, 0);
+
+        unsigned long retreatElapsed = now - obstacleRetreatStartTime;
+        if (retreatElapsed < obstacleRetreatMs) {
             return;
         }
-        obstacleRetreating = false;
-        lastObstacleDistance = 400.0f;
-        lastObstacleMeasureTime = 0;
+
+        // 达到最短退避时长后，检测是否已经重新压到线；若过久仍未压线则兜底切换倒车巡线。
+        uint8_t retreatState = lineTracker.getState();
+        bool rs1 = (retreatState >> 0) & 1;
+        bool rs2 = (retreatState >> 1) & 1;
+        bool rs3 = (retreatState >> 2) & 1;
+        bool rs4 = (retreatState >> 3) & 1;
+        bool lineFound = (!rs1) || (!rs2) || (!rs3) || (!rs4);
+
+        if (lineFound || retreatElapsed >= obstacleRetreatMaxMs) {
+            obstacleRetreating = false;
+            reverseFollowing = true;
+            reverseFollowStartTime = now;
+            finishLineConfirmCount = 0;
+            lastObstacleDistance = 400.0f;
+            lastObstacleMeasureTime = 0;
+        }
+        return;
     }
 
-    if (isObstacleTooClose(now)) {
+    if (!postObstacleMode && isObstacleTooClose(now)) {
         // 一旦遇到障碍，后续赛段将 0000 视作截止线入库触发。
         postObstacleMode = true;
+        reverseFollowing = false;
+        rightTurning = false;
+        rightTurnArmed = false;
         obstacleRetreating = true;
         obstacleRetreatStartTime = now;
         mecanumControl.setTargetVelocity(-baseSpeed, baseSpeed * 2, 0);
@@ -352,7 +380,7 @@ void LineFollower::update() {
                       (s3 ? 0b0010 : 0) |
                       (s4 ? 0b0001 : 0);
 
-    if (postObstacleMode && !garageDone) {
+    if (postObstacleMode && reverseFollowing && !garageDone) {
         if (pattern == 0b0000) {
             if (finishLineConfirmCount < finishLineConfirmFrames) {
                 finishLineConfirmCount++;
@@ -400,19 +428,21 @@ void LineFollower::update() {
     };
 #endif
 
-    if (pattern != 0b1000) {
-        rightTurnArmed = true;
-    }
-
-    if (pattern == 0b1000 && rightTurnArmed) {
-        startRightTurnByImu(now);
-#if defined(LF_DEBUG_PATTERN) && LF_DEBUG_PATTERN
-        logPatternDecision(1, "RIGHT_TURN_TRIGGER");
-#endif
-        if (rightTurning) {
-            updateRightTurnByImu(now);
+    if (!postObstacleMode) {
+        if (pattern != 0b1000) {
+            rightTurnArmed = true;
         }
-        return;
+
+        if (pattern == 0b1000 && rightTurnArmed) {
+            startRightTurnByImu(now);
+#if defined(LF_DEBUG_PATTERN) && LF_DEBUG_PATTERN
+            logPatternDecision(1, "RIGHT_TURN_TRIGGER");
+#endif
+            if (rightTurning) {
+                updateRightTurnByImu(now);
+            }
+            return;
+        }
     }
 
     float mappedOmega = 0.0f;
@@ -477,12 +507,18 @@ void LineFollower::update() {
     }
 
     if (mappedState) {
+        if (reverseFollowing) {
+            // 倒车巡线时，角速度方向取反以匹配后退运动学。
+            mappedOmega = -mappedOmega;
+        }
         if (mappedOmega > 0.0f) {
             mappedOmega *= LF_TURN_LEFT_GAIN;
         } else if (mappedOmega < 0.0f) {
             mappedOmega *= LF_TURN_RIGHT_GAIN;
         }
-        float vxCmd = baseSpeed * mappedSpeedRatio;
+        float vxSign = reverseFollowing ? -1.0f : 1.0f;
+        float speedScale = reverseFollowing ? reverseFollowSpeedRatio : 1.0f;
+        float vxCmd = vxSign * baseSpeed * mappedSpeedRatio * speedScale;
 #if defined(LF_DEBUG_PATTERN) && LF_DEBUG_PATTERN
         logPatternDecision(mappedDecision, mappedLabel);
 #endif
@@ -501,17 +537,33 @@ void LineFollower::update() {
 
         float rawError = errorSum / activeCount;
         float omegaCmd = -rawError * (turnSpeed / 3.0f);
+        if (reverseFollowing) {
+            omegaCmd = -omegaCmd;
+        }
         if (omegaCmd > 0.0f) {
             omegaCmd *= LF_TURN_LEFT_GAIN;
         } else if (omegaCmd < 0.0f) {
             omegaCmd *= LF_TURN_RIGHT_GAIN;
         }
         omegaCmd = constrain(omegaCmd, -turnSpeed, turnSpeed);
-        float vxCmd = baseSpeed * patternMediumSpeedRatio;
+        float vxSign = reverseFollowing ? -1.0f : 1.0f;
+        float speedScale = reverseFollowing ? reverseFollowSpeedRatio : 1.0f;
+        float vxCmd = vxSign * baseSpeed * patternMediumSpeedRatio * speedScale;
 #if defined(LF_DEBUG_PATTERN) && LF_DEBUG_PATTERN
         logPatternDecision(10, "FALLBACK");
 #endif
         mecanumControl.setTargetVelocity(vxCmd, 0, omegaCmd);
+        return;
+    }
+
+    if (reverseFollowing) {
+        // 倒车巡线阶段丢线时，继续左后退搜索以提高再压线概率。
+        float vxCmd = -baseSpeed * reverseFollowSpeedRatio;
+        float vyCmd = baseSpeed * reverseLostlineVyRatio;
+#if defined(LF_DEBUG_PATTERN) && LF_DEBUG_PATTERN
+        logPatternDecision(12, "REVERSE_LOSTLINE_SEARCH");
+#endif
+        mecanumControl.setTargetVelocity(vxCmd, vyCmd, 0);
         return;
     }
 
