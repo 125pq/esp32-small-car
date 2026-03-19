@@ -104,7 +104,7 @@
 #define LF_POST_REVERSE_VY_MAX_RATIO 0.26f // 长虚线倒退段横向速度限幅比例
 #define LF_POST_FINISH_LINE_CONFIRM_FRAMES 2U // 后程0000截止线连续确认帧数
 #define LF_POST_STAGE_BLEND_MS 220UL // 后程阶段切换平滑过渡时长 (ms)
-#define LF_POST_GARAGE_MOVE_MS 1200UL // 截止线后右前入库动作时长 (ms)
+#define LF_POST_GARAGE_MOVE_MS 1350UL // 截止线后右前入库动作时长 (ms)
 #define LF_POST_GARAGE_VX_RATIO 0.67f // 入库动作前向速度比例
 #define LF_POST_GARAGE_VY_RATIO 0.85f // 入库动作右移速度比例（内部取负号为右移）
 #define LF_DEBUG_PATTERN 0                // 临时调试：打印巡线pattern与命中分支（0-关闭，1-开启）
