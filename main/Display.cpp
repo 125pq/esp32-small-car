@@ -1,7 +1,7 @@
 /**
  * @file Display.cpp
  * @brief OLED显示模块实现文件
- * @author 黄竞亿
+ * @author 125pq
  * @date 2025.12.4
  */
 

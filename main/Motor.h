@@ -1,7 +1,7 @@
 /**
  * @file Motor.h
  * @brief 电机控制模块头文件
- * @author 黄竞亿
+ * @author 125pq
  * @date 2025.12.4
  */
 

@@ -1,7 +1,7 @@
 /**
  * @file Ultrasonic.h
  * @brief 超声波测距模块头文件
- * @author 黄竞亿
+ * @author 125pq
  * @date 2025.12.4
  */
 

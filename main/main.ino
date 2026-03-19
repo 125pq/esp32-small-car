@@ -1,7 +1,7 @@
 /**
  * @file main.ino
  * @brief ESP32 四轮麦轮小车主控程序
- * @author 黄竞亿
+ * @author 125pq
  * @date 2025.12.4
  * 
  * 功能：通过WiFi接收控制指令，控制电机运动，集成多种传感器

@@ -1,7 +1,7 @@
 /**
  * @file ObstacleAvoidance.h
  * @brief 超声波避障控制模块头文件
- * @author 黄竞亿
+ * @author 125pq
  * @date 2026.3.11
  */
 

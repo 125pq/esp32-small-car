@@ -1,7 +1,7 @@
 /**
  * @file MecanumControl.h
  * @brief 麦轮运动控制模块头文件
- * @author 黄竞亿
+ * @author 125pq
  * @date 2025.12.4
  */
 

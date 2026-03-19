@@ -1,7 +1,7 @@
 /**
  * @file LineTracker.h
  * @brief 巡线传感器模块头文件
- * @author 黄竞亿
+ * @author 125pq
  * @date 2025.12.4
  */
 

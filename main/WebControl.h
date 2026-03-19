@@ -1,7 +1,7 @@
 /**
  * @file WebControl.h
  * @brief Web服务器控制模块头文件
- * @author 黄竞亿
+ * @author 125pq
  * @date 2025.12.4
  */
 

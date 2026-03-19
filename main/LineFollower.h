@@ -1,7 +1,7 @@
 /**
  * @file LineFollower.h
  * @brief 寻线控制模块头文件
- * @author 黄竞亿
+ * @author 125pq
  * @date 2026.3.2
  */
 
