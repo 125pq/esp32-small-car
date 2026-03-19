@@ -62,7 +62,7 @@ String WebControl::getIPAddress() {
 
 void WebControl::handleRoot() {
     String html = generateHTML();
-    server->send(200, "text/html", html);
+    server->send(200, "text/html; charset=utf-8", html);
 }
 
 void WebControl::handleLineParams() {
@@ -171,7 +171,7 @@ void WebControl::handleControl() {
 }
 
 String WebControl::generateHTML() {
-    String html = "<html><head><meta name='viewport' content='width=device-width, initial-scale=1'>";
+    String html = "<html><head><meta charset='UTF-8'><meta name='viewport' content='width=device-width, initial-scale=1'>";
     html += "<style>body{font-family:Arial;text-align:center;background:#f7f7f7;margin:0;padding:10px;}";
     html += ".control{display:inline-block;margin:10px;vertical-align:top;background:#fff;padding:10px;border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,.1);} ";
     html += "button{width:88px;height:44px;margin:4px;font-size:14px;border-radius:6px;border:1px solid #ccc;background:#fafafa;}";
@@ -180,65 +180,66 @@ String WebControl::generateHTML() {
     html += ".param label{display:block;font-size:13px;color:#333;}";
     html += ".smallbtn{width:auto;height:34px;padding:0 12px;}";
     html += "</style></head>";
-    html += "<body><h1>Mecanum Wheel Car Control</h1>";
+    html += "<body><h1>麦轮小车控制台</h1>";
     
     // 方向控制
-    html += "<div class='control'><h2>Direction</h2>";
-    html += "<button onclick=\"control('F')\">Forward</button><br>";
-    html += "<button onclick=\"control('L')\">Left</button>";
-    html += "<button onclick=\"control('R')\">Right</button><br>";
-    html += "<button onclick=\"control('B')\">Backward</button>";
-    html += "<button onclick=\"control('S')\">Stop</button></div>";
+    html += "<div class='control'><h2>方向</h2>";
+    html += "<button onclick=\"control('F')\">前进</button><br>";
+    html += "<button onclick=\"control('L')\">左移</button>";
+    html += "<button onclick=\"control('R')\">右移</button><br>";
+    html += "<button onclick=\"control('B')\">后退</button>";
+    html += "<button onclick=\"control('S')\">停止</button></div>";
     
     // 斜向移动
-    html += "<div class='control'><h2>Diagonal</h2>";
-    html += "<button onclick=\"control('FL')\">Front-Left</button>";
-    html += "<button onclick=\"control('FR')\">Front-Right</button><br>";
-    html += "<button onclick=\"control('BL')\">Back-Left</button>";
-    html += "<button onclick=\"control('BR')\">Back-Right</button></div>";
+    html += "<div class='control'><h2>斜移</h2>";
+    html += "<button onclick=\"control('FL')\">左前</button>";
+    html += "<button onclick=\"control('FR')\">右前</button><br>";
+    html += "<button onclick=\"control('BL')\">左后</button>";
+    html += "<button onclick=\"control('BR')\">右后</button></div>";
     
     // 旋转控制
-    html += "<div class='control'><h2>Rotation</h2>";
-    html += "<button onclick=\"control('CL')\">Rotate Left</button><br>";
-    html += "<button onclick=\"control('CR')\">Rotate Right</button></div>";
+    html += "<div class='control'><h2>旋转</h2>";
+    html += "<button onclick=\"control('CL')\">左旋</button><br>";
+    html += "<button onclick=\"control('CR')\">右旋</button></div>";
     
     // 巡线控制
-    html += "<div class='control'><h2>Line Follow</h2>";
-    html += "<button onclick=\"controlVal('LF', '1')\">Start</button>";
-    html += "<button onclick=\"controlVal('LF', '0')\">Stop</button></div>";
+    html += "<div class='control'><h2>巡线</h2>";
+    html += "<button onclick=\"controlVal('LF', '1')\">启动</button>";
+    html += "<button onclick=\"controlVal('LF', '0')\">停止</button></div>";
     
 
     // 避障控制
-    html += "<div class='control'><h2>Obstacle Avoidance</h2>";
-    html += "<button onclick=\"controlVal('OA', '1')\">Start</button>";
-    html += "<button onclick=\"controlVal('OA', '0')\">Stop</button></div>";
+    html += "<div class='control'><h2>避障</h2>";
+    html += "<button onclick=\"controlVal('OA', '1')\">启动</button>";
+    html += "<button onclick=\"controlVal('OA', '0')\">停止</button></div>";
 
     // 速度控制
     int currentSpeedInt = (int)(currentSpeed * 100);
-    html += "<div class='control'><h2>Speed</h2>";
+    html += "<div class='control'><h2>速度</h2>";
     html += "<input type='range' id='speed' class='slider' min='0' max='100' value='" + String(currentSpeedInt) + "' oninput='updateSpeed()' onchange='updateSpeed(true)'>";
-    html += "<p>Speed: <span id='speedValue'>" + String(currentSpeedInt) + "</span>%</p></div>";
+    html += "<p>速度: <span id='speedValue'>" + String(currentSpeedInt) + "</span>%</p></div>";
 
     // 基础循迹参数调节
-    html += "<div class='control'><h2>Line Follow Basic Params</h2>";
-    html += "<div class='param'><label>Slight Turn Ratio: <span id='v_pst'>0</span></label><input type='range' id='p_pst' class='slider' min='0.10' max='2' step='0.01' oninput=\"updateParam('pst','p_pst','v_pst')\"></div>";
-    html += "<div class='param'><label>Medium Turn Ratio: <span id='v_pmt'>0</span></label><input type='range' id='p_pmt' class='slider' min='0.20' max='2.5' step='0.01' oninput=\"updateParam('pmt','p_pmt','v_pmt')\"></div>";
-    html += "<div class='param'><label>Large Turn Ratio: <span id='v_plt'>0</span></label><input type='range' id='p_plt' class='slider' min='0.30' max='5' step='0.01' oninput=\"updateParam('plt','p_plt','v_plt')\"></div>";
-    html += "<div class='param'><label>Slight Speed Ratio: <span id='v_pss'>0</span></label><input type='range' id='p_pss' class='slider' min='0.30' max='1.00' step='0.01' oninput=\"updateParam('pss','p_pss','v_pss')\"></div>";
-    html += "<div class='param'><label>Medium Speed Ratio: <span id='v_pms'>0</span></label><input type='range' id='p_pms' class='slider' min='0.30' max='1.00' step='0.01' oninput=\"updateParam('pms','p_pms','v_pms')\"></div>";
-    html += "<div class='param'><label>Large Speed Ratio: <span id='v_pls'>0</span></label><input type='range' id='p_pls' class='slider' min='0.20' max='1.00' step='0.01' oninput=\"updateParam('pls','p_pls','v_pls')\"></div>";
-    html += "<div class='param'><label>Right Turn Pre Delay (ms): <span id='v_rpd'>0</span></label><input type='range' id='p_rpd' class='slider' min='0' max='1200' step='10' oninput=\"updateParam('rpd','p_rpd','v_rpd')\"></div>";
-    html += "<div class='param'><label>Obstacle Retreat (ms): <span id='v_orm'>0</span></label><input type='range' id='p_orm' class='slider' min='100' max='3000' step='10' oninput=\"updateParam('orm','p_orm','v_orm')\"></div>";
-    html += "<div class='param'><label>Obstacle Retreat Max (ms): <span id='v_orx'>0</span></label><input type='range' id='p_orx' class='slider' min='300' max='6000' step='10' oninput=\"updateParam('orx','p_orx','v_orx')\"></div>";
-    html += "<div class='param'><label>Post Retreat Back Vx Ratio: <span id='v_prb'>0</span></label><input type='range' id='p_prb' class='slider' min='0.10' max='1.50' step='0.01' oninput=\"updateParam('prb','p_prb','v_prb')\"></div>";
-    html += "<div class='param'><label>Post Retreat Left Vy Ratio: <span id='v_prl'>0</span></label><input type='range' id='p_prl' class='slider' min='0.05' max='1.20' step='0.01' oninput=\"updateParam('prl','p_prl','v_prl')\"></div>";
-    html += "<div class='param'><label>Post Reverse Vx Ratio: <span id='v_prv'>0</span></label><input type='range' id='p_prv' class='slider' min='0.10' max='1.50' step='0.01' oninput=\"updateParam('prv','p_prv','v_prv')\"></div>";
-    html += "<div class='param'><label>Post Reverse Vy Gain: <span id='v_prg'>0</span></label><input type='range' id='p_prg' class='slider' min='0.05' max='1.50' step='0.01' oninput=\"updateParam('prg','p_prg','v_prg')\"></div>";
-    html += "<div class='param'><label>Post Reverse Vy Max Ratio: <span id='v_prm'>0</span></label><input type='range' id='p_prm' class='slider' min='0.05' max='1.00' step='0.01' oninput=\"updateParam('prm','p_prm','v_prm')\"></div>";
-    html += "<div class='param'><label>Post Garage Move (ms): <span id='v_pgm'>0</span></label><input type='range' id='p_pgm' class='slider' min='300' max='8000' step='10' oninput=\"updateParam('pgm','p_pgm','v_pgm')\"></div>";
-    html += "<div class='param'><label>Post Garage Vx Ratio: <span id='v_pgx'>0</span></label><input type='range' id='p_pgx' class='slider' min='0.10' max='1.20' step='0.01' oninput=\"updateParam('pgx','p_pgx','v_pgx')\"></div>";
-    html += "<div class='param'><label>Post Garage Vy Ratio: <span id='v_pgy'>0</span></label><input type='range' id='p_pgy' class='slider' min='0.10' max='1.20' step='0.01' oninput=\"updateParam('pgy','p_pgy','v_pgy')\"></div>";
-    html += "<button class='smallbtn' onclick='resetLineParams()'>Reset Line Params</button></div>";
+    html += "<div class='control'><h2>基础循迹参数调节</h2>";
+    html += "<div class='param'><label>轻微偏移转向比例: <span id='v_pst'>0</span></label><input type='range' id='p_pst' class='slider' min='0.10' max='2' step='0.01' oninput=\"updateParam('pst','p_pst','v_pst')\"></div>";
+    html += "<div class='param'><label>中等偏移转向比例: <span id='v_pmt'>0</span></label><input type='range' id='p_pmt' class='slider' min='0.20' max='2.5' step='0.01' oninput=\"updateParam('pmt','p_pmt','v_pmt')\"></div>";
+    html += "<div class='param'><label>大幅偏移转向比例: <span id='v_plt'>0</span></label><input type='range' id='p_plt' class='slider' min='0.30' max='5' step='0.01' oninput=\"updateParam('plt','p_plt','v_plt')\"></div>";
+    html += "<div class='param'><label>轻微偏移前进速度比例: <span id='v_pss'>0</span></label><input type='range' id='p_pss' class='slider' min='0.30' max='1.00' step='0.01' oninput=\"updateParam('pss','p_pss','v_pss')\"></div>";
+    html += "<div class='param'><label>中等偏移前进速度比例: <span id='v_pms'>0</span></label><input type='range' id='p_pms' class='slider' min='0.30' max='1.00' step='0.01' oninput=\"updateParam('pms','p_pms','v_pms')\"></div>";
+    html += "<div class='param'><label>大幅偏移前进速度比例: <span id='v_pls'>0</span></label><input type='range' id='p_pls' class='slider' min='0.20' max='1.00' step='0.01' oninput=\"updateParam('pls','p_pls','v_pls')\"></div>";
+    html += "<div class='param'><label>右转前直行补偿时长(ms): <span id='v_rpd'>0</span></label><input type='range' id='p_rpd' class='slider' min='0' max='1200' step='10' oninput=\"updateParam('rpd','p_rpd','v_rpd')\"></div>";
+    html += "<div class='param'><label>避障后左后退最短时长(ms): <span id='v_orm'>0</span></label><input type='range' id='p_orm' class='slider' min='100' max='3000' step='10' oninput=\"updateParam('orm','p_orm','v_orm')\"></div>";
+    html += "<div class='param'><label>避障后左后退最长时长(ms): <span id='v_orx'>0</span></label><input type='range' id='p_orx' class='slider' min='300' max='6000' step='10' oninput=\"updateParam('orx','p_orx','v_orx')\"></div>";
+    html += "<div class='param'><label>避障后左后移动-后退速度比例: <span id='v_prb'>0</span></label><input type='range' id='p_prb' class='slider' min='0.10' max='1.50' step='0.01' oninput=\"updateParam('prb','p_prb','v_prb')\"></div>";
+    html += "<div class='param'><label>避障后左后移动-左移速度比例: <span id='v_prl'>0</span></label><input type='range' id='p_prl' class='slider' min='0.05' max='1.20' step='0.01' oninput=\"updateParam('prl','p_prl','v_prl')\"></div>";
+    html += "<div class='param'><label>长虚线倒车循迹-后退速度比例: <span id='v_prv'>0</span></label><input type='range' id='p_prv' class='slider' min='0.10' max='1.50' step='0.01' oninput=\"updateParam('prv','p_prv','v_prv')\"></div>";
+    html += "<div class='param'><label>长虚线倒车循迹-横向修正增益: <span id='v_prg'>0</span></label><input type='range' id='p_prg' class='slider' min='0.05' max='1.50' step='0.01' oninput=\"updateParam('prg','p_prg','v_prg')\"></div>";
+    html += "<div class='param'><label>长虚线倒车循迹-横向速度限幅比例: <span id='v_prm'>0</span></label><input type='range' id='p_prm' class='slider' min='0.05' max='1.00' step='0.01' oninput=\"updateParam('prm','p_prm','v_prm')\"></div>";
+    html += "<div class='param'><label>后程阶段切换平滑过渡时长(ms): <span id='v_psb'>0</span></label><input type='range' id='p_psb' class='slider' min='0' max='2000' step='10' oninput=\"updateParam('psb','p_psb','v_psb')\"></div>";
+    html += "<div class='param'><label>截止线后右前入库动作时长(ms): <span id='v_pgm'>0</span></label><input type='range' id='p_pgm' class='slider' min='300' max='8000' step='10' oninput=\"updateParam('pgm','p_pgm','v_pgm')\"></div>";
+    html += "<div class='param'><label>入库动作-前向速度比例: <span id='v_pgx'>0</span></label><input type='range' id='p_pgx' class='slider' min='0.10' max='1.20' step='0.01' oninput=\"updateParam('pgx','p_pgx','v_pgx')\"></div>";
+    html += "<div class='param'><label>入库动作-右移速度比例: <span id='v_pgy'>0</span></label><input type='range' id='p_pgy' class='slider' min='0.10' max='1.20' step='0.01' oninput=\"updateParam('pgy','p_pgy','v_pgy')\"></div>";
+    html += "<button class='smallbtn' onclick='resetLineParams()'>恢复默认</button></div>";
     
     html += "<script>";
     html += "var lineParamTimer = {};";

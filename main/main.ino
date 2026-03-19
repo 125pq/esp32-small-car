@@ -109,17 +109,17 @@ void loop() {
     mecanumControl.update();
 
     // ! 更新显示信息
-    float vx, vy, omega;
-    mecanumControl.getTargetVelocity(vx, vy, omega);
-    display.showMecanumInfo(
-        mpu6050.getAngleZ(),
-        mpu6050.getGyroZ(),
-        vx, vy, omega,
-        mecanumControl.getAngleOutput(),
-        mpu6050.getAccX(),
-        mpu6050.getAccY(),
-        mpu6050.getAccZ()
-    );
+    //float vx, vy, omega;
+    //mecanumControl.getTargetVelocity(vx, vy, omega);
+    //display.showMecanumInfo(
+    //    mpu6050.getAngleZ(),
+    //    mpu6050.getGyroZ(),
+    //    vx, vy, omega,
+    //    mecanumControl.getAngleOutput(),
+    //    mpu6050.getAccX(),
+    //    mpu6050.getAccY(),
+    //    mpu6050.getAccZ()
+    //);
 
-    delay(2);
+    delay(1);
 }

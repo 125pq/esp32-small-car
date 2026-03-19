@@ -148,6 +148,7 @@ private:
     float postReverseVxRatio;
     float postReverseVyGain;
     float postReverseVyMaxRatio;
+    unsigned long postStageBlendMs;
     unsigned long postGarageMoveMs;
     float postGarageVxRatio;
     float postGarageVyRatio;

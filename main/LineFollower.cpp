@@ -31,7 +31,7 @@ LineFollower::LineFollower(LineTracker& tracker, MecanumControl& control, Ultras
     rightTurnTargetDeg = 80.0f;// 右转目标角度（相对于起始方向）
     rightTurnStopDeg = 3.0f;
     rightTurnStopGyroDegPerSec = 8.0f;
-    rightTurnTimeoutMs = 1400UL;
+    rightTurnTimeoutMs = 2300UL;
     rightTurnStableCount = 0;
     rightTurnTriggerConfirmFrames = LF_RIGHT_TURN_TRIGGER_CONFIRM_FRAMES;
     rightTurnTriggerCount = 0;
@@ -57,6 +57,7 @@ LineFollower::LineFollower(LineTracker& tracker, MecanumControl& control, Ultras
     postReverseVxRatio = LF_POST_REVERSE_VX_RATIO;
     postReverseVyGain = LF_POST_REVERSE_VY_GAIN;
     postReverseVyMaxRatio = LF_POST_REVERSE_VY_MAX_RATIO;
+    postStageBlendMs = LF_POST_STAGE_BLEND_MS;
     postGarageMoveMs = LF_POST_GARAGE_MOVE_MS;
     postGarageVxRatio = LF_POST_GARAGE_VX_RATIO;
     postGarageVyRatio = LF_POST_GARAGE_VY_RATIO;
@@ -197,6 +198,10 @@ bool LineFollower::setTuning(const String& key, float value) {
         postReverseVyMaxRatio = constrain(value, 0.05f, 1.00f);
         return true;
     }
+    if (key == "psb") {
+        postStageBlendMs = (unsigned long)constrain(value, 0.0f, 2000.0f);
+        return true;
+    }
     if (key == "pgm") {
         postGarageMoveMs = (unsigned long)constrain(value, 300.0f, 8000.0f);
         return true;
@@ -236,6 +241,7 @@ void LineFollower::resetTuningToDefault() {
     postReverseVxRatio = LF_POST_REVERSE_VX_RATIO;
     postReverseVyGain = LF_POST_REVERSE_VY_GAIN;
     postReverseVyMaxRatio = LF_POST_REVERSE_VY_MAX_RATIO;
+    postStageBlendMs = LF_POST_STAGE_BLEND_MS;
     postGarageMoveMs = LF_POST_GARAGE_MOVE_MS;
     postGarageVxRatio = LF_POST_GARAGE_VX_RATIO;
     postGarageVyRatio = LF_POST_GARAGE_VY_RATIO;
@@ -257,6 +263,7 @@ String LineFollower::getTuningJson() const {
     json += "\"prv\":" + String(postReverseVxRatio, 3) + ",";
     json += "\"prg\":" + String(postReverseVyGain, 3) + ",";
     json += "\"prm\":" + String(postReverseVyMaxRatio, 3) + ",";
+    json += "\"psb\":" + String(postStageBlendMs) + ",";
     json += "\"pgm\":" + String(postGarageMoveMs) + ",";
     json += "\"pgx\":" + String(postGarageVxRatio, 3) + ",";
     json += "\"pgy\":" + String(postGarageVyRatio, 3);
@@ -446,6 +453,14 @@ void LineFollower::update() {
         return constrain(omegaCmd, -postLockYawMaxOmega, postLockYawMaxOmega);
     };
 
+    auto blendByStageElapsed = [&](unsigned long stageElapsed) -> float {
+        if (postStageBlendMs == 0UL || stageElapsed >= postStageBlendMs) {
+            return 1.0f;
+        }
+        float t = (float)stageElapsed / (float)postStageBlendMs;
+        return constrain(t, 0.0f, 1.0f);
+    };
+
     if (!postObstacleMode && isObstacleTooClose(now)) {
         // 触发后程模式：记录避障前航向并切换到左后退阶段。
         postObstacleMode = true;
@@ -489,6 +504,8 @@ void LineFollower::update() {
             }
 
             case PostObstacleStage::ReverseTrack: {
+                unsigned long stageElapsed = now - postStageStartTime;
+
                 if (pattern == 0b0000) {
                     if (postFinishConfirmCount < postFinishConfirmFrames) {
                         postFinishConfirmCount++;
@@ -520,14 +537,28 @@ void LineFollower::update() {
                     vyCmd = constrain(vyCmd, -vyLimit, vyLimit);
                 }
 
+                float blend = blendByStageElapsed(stageElapsed);
+                float retreatVx = -baseSpeed * postRetreatBackVxRatio;
+                float retreatVy = baseSpeed * postRetreatLeftVyRatio;
+                vxCmd = retreatVx + (vxCmd - retreatVx) * blend;
+                vyCmd = retreatVy + (vyCmd - retreatVy) * blend;
+
                 mecanumControl.setTargetVelocity(vxCmd, vyCmd, lockOmegaCmd);
                 return;
             }
 
             case PostObstacleStage::GarageMove: {
-                if (now - postStageStartTime < postGarageMoveMs) {
-                    float vxCmd = baseSpeed * postGarageVxRatio;
-                    float vyCmd = -baseSpeed * postGarageVyRatio;
+                unsigned long stageElapsed = now - postStageStartTime;
+                if (stageElapsed < postGarageMoveMs) {
+                    float targetVx = baseSpeed * postGarageVxRatio;
+                    float targetVy = -baseSpeed * postGarageVyRatio;
+
+                    float blend = blendByStageElapsed(stageElapsed);
+                    float reverseVx = -baseSpeed * postReverseVxRatio;
+                    float reverseVy = 0.0f;
+                    float vxCmd = reverseVx + (targetVx - reverseVx) * blend;
+                    float vyCmd = reverseVy + (targetVy - reverseVy) * blend;
+
                     mecanumControl.setTargetVelocity(vxCmd, vyCmd, lockOmegaCmd);
                     return;
                 }
