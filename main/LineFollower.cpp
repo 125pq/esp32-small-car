@@ -361,9 +361,9 @@ bool LineFollower::updateRightTurnByImu(unsigned long now) {
         }
 
         if (now - rightTurnReacquireStartTime >= rightTurnReacquireTimeoutMs) {
-            rightTurnReacquiring = false;
+            // 超时后继续回线搜索，不再直接判定右转完成。
+            rightTurnReacquireStartTime = now;
             rightTurnReacquireLineConfirmCount = 0;
-            return true;
         }
 
         float omegaCmd = -turnSpeed * rightTurnReacquireOmegaRatio;
@@ -373,57 +373,17 @@ bool LineFollower::updateRightTurnByImu(unsigned long now) {
         return false;
     }
 
-    if (imu == nullptr) {
-        if (now - rightTurnStartTime < rightTurn90Ms) {
-            float turnOmega = -turnSpeed * rightTurnOmegaRatio;
-            turnOmega = constrain(turnOmega, -MAX_ROTATION_SPEED, MAX_ROTATION_SPEED);
-            mecanumControl.setTargetVelocity(0, 0, turnOmega);
-            return false;
-        }
-        rightTurnReacquiring = true;
-        rightTurnReacquireStartTime = now;
-        rightTurnReacquireLineConfirmCount = 0;
-        return false;
-    }
-
-    imu->update();
-    float yawDeg = imu->getAngleZ();
-    float gyroZDegPerSec = imu->getGyroZ();
-
-    float turnedDeg = fabs(wrapDeg180(yawDeg - rightTurnStartYawDeg));
-    float remainDeg = rightTurnTargetDeg - turnedDeg;
-
-    bool angleReady = remainDeg <= rightTurnStopDeg;
-    if (angleReady) {
-        // 已接近目标角，先停转等待角速度衰减，避免过冲持续扩大。
-        mecanumControl.setTargetVelocity(0, 0, 0);
-    } else {
-        float omegaScale = constrain(remainDeg / rightTurnTargetDeg, 0.30f, 1.00f);
-        float turnOmega = -turnSpeed * rightTurnOmegaRatio * omegaScale;
+    // 去掉角度完成判定：先按固定时长执行右转，再进入回线阶段。
+    if (now - rightTurnStartTime < rightTurn90Ms) {
+        float turnOmega = -turnSpeed * rightTurnOmegaRatio;
         turnOmega = constrain(turnOmega, -MAX_ROTATION_SPEED, MAX_ROTATION_SPEED);
         mecanumControl.setTargetVelocity(0, 0, turnOmega);
-    }
-
-    bool gyroReady = fabs(gyroZDegPerSec) <= rightTurnStopGyroDegPerSec;
-
-    if (angleReady && gyroReady) {
-        rightTurnStableCount++;
-    } else {
-        rightTurnStableCount = 0;
-    }
-
-    if (rightTurnStableCount >= 3) {
-        rightTurnReacquiring = true;
-        rightTurnReacquireStartTime = now;
-        rightTurnReacquireLineConfirmCount = 0;
-        rightTurnStableCount = 0;
         return false;
     }
 
-    if (now - rightTurnStartTime >= rightTurnTimeoutMs) {
-        return true;
-    }
-
+    rightTurnReacquiring = true;
+    rightTurnReacquireStartTime = now;
+    rightTurnReacquireLineConfirmCount = 0;
     return false;
 }
 
