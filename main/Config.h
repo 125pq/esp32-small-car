@@ -75,24 +75,37 @@
 // 基础循迹参数
 #define LF_PATTERN_SLIGHT_TURN_RATIO 0.45f   // 轻微偏移转向比例
 #define LF_PATTERN_MEDIUM_TURN_RATIO 0.75f   // 中等偏移转向比例
-#define LF_PATTERN_LARGE_TURN_RATIO 3.00f    // 大偏移转向比例
+#define LF_PATTERN_LARGE_TURN_RATIO 1.00f    // 大偏移转向比例
 #define LF_PATTERN_SLIGHT_SPEED_RATIO 0.92f  // 轻微偏移前进速度比例
 #define LF_PATTERN_MEDIUM_SPEED_RATIO 0.80f  // 中等偏移前进速度比例
 #define LF_PATTERN_LARGE_SPEED_RATIO 0.65f   // 大偏移前进速度比例
-#define LF_RIGHT_TURN_OMEGA_RATIO 6.0f      // 右转路口旋转速度比例
+#define LF_RIGHT_TURN_OMEGA_RATIO 5.0f      // 右转路口旋转速度比例
 #define LF_RIGHT_TURN_90_MS 850UL            // 右转90度动作时长 (ms)
+#define LF_RIGHT_TURN_TRIGGER_CONFIRM_FRAMES 4U // 右转触发连续确认帧数，抑制十字路口误触发
+#define LF_RIGHT_TURN_CROSS_SUPPRESS_MS 50UL // 十字路口后短时禁止右转触发，避免误判
+#define LF_RIGHT_TURN_REACQUIRE_TIMEOUT_MS 500UL // 右转后回线确认阶段最长时长 (ms)
+#define LF_RIGHT_TURN_REACQUIRE_OMEGA_RATIO 0.40f // 右转后回线确认阶段旋转速度比例
+#define LF_RIGHT_TURN_REACQUIRE_VX_RATIO 0.16f // 右转后回线确认阶段前向速度比例
+#define LF_RIGHT_TURN_REACQUIRE_LINE_CONFIRM_FRAMES 5U // 右转后回线判定连续命中帧数
+#define LF_RIGHT_TURN_PRE_DELAY_MS 350UL // 右转触发后先短直行，补偿传感器-几何中心前后偏移
+#define LF_RIGHT_TURN_PRE_DELAY_VX_RATIO 0.55f // 右转前补偿直行速度比例
 #define LF_TURN_LEFT_GAIN 1.45f              // 巡线左转补偿增益（用于左转偏慢场景）
 #define LF_TURN_RIGHT_GAIN 1.15f             // 巡线右转补偿增益
 #define LF_OBSTACLE_DISTANCE_CM 8.0f     // 巡线时触发避障的距离阈值 (cm)
-#define LF_OBSTACLE_RETREAT_MS 450UL     // 遇障后左后退持续时间 (ms)
-#define LF_OBSTACLE_RETREAT_MAX_MS 2600UL // 遇障后左后退最长持续时间 (ms)
+#define LF_OBSTACLE_RETREAT_MS 800UL     // 遇障后左后退持续时间 (ms)
+#define LF_OBSTACLE_RETREAT_MAX_MS 3000UL // 遇障后左后退最长持续时间 (ms)
 #define LF_OBSTACLE_MEASURE_INTERVAL_MS 80UL // 巡线时超声测距周期 (ms)
-#define LF_REVERSE_FOLLOW_SPEED_RATIO 0.72f // 避障后倒车巡线速度比例
-#define LF_REVERSE_LOSTLINE_VY_RATIO 0.55f  // 倒车巡线丢线时左移搜索比例
-#define LF_FINISH_LINE_CONFIRM_FRAMES 2U // 避障后将0000判定为截止线时的连续确认帧数
-#define LF_GARAGE_MOVE_MS 900UL           // 截止线触发后右前入库动作时长 (ms)
-#define LF_GARAGE_MOVE_VX_RATIO 0.45f     // 右前入库动作前向速度比例
-#define LF_GARAGE_MOVE_VY_RATIO 0.85f     // 右前入库动作右向速度比例（内部取负号为右移）
+#define LF_POST_LOCK_YAW_KP 0.055f // 避障后航向锁定P增益(deg->rad/s)
+#define LF_POST_LOCK_YAW_MAX_OMEGA_RATIO 0.22f // 避障后航向锁定角速度限幅比例（相对turnSpeed）
+#define LF_POST_RETREAT_BACK_VX_RATIO 0.84f // 避障后左后移动的后退速度比例
+#define LF_POST_RETREAT_LEFT_VY_RATIO 0.42f // 避障后左后移动的左移速度比例（后退约为左移2倍）
+#define LF_POST_REVERSE_VX_RATIO 0.82f // 长虚线倒退段后退速度比例
+#define LF_POST_REVERSE_VY_GAIN 0.42f // 长虚线倒退段横向修正增益
+#define LF_POST_REVERSE_VY_MAX_RATIO 0.26f // 长虚线倒退段横向速度限幅比例
+#define LF_POST_FINISH_LINE_CONFIRM_FRAMES 2U // 后程0000截止线连续确认帧数
+#define LF_POST_GARAGE_MOVE_MS 2600UL // 截止线后右前入库动作时长 (ms)
+#define LF_POST_GARAGE_VX_RATIO 0.45f // 入库动作前向速度比例
+#define LF_POST_GARAGE_VY_RATIO 0.85f // 入库动作右移速度比例（内部取负号为右移）
 #define LF_DEBUG_PATTERN 0                // 临时调试：打印巡线pattern与命中分支（0-关闭，1-开启）
 #define LF_DEBUG_PRINT_INTERVAL_MS 120UL  // 调试打印最小间隔 (ms)
 

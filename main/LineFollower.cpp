@@ -22,39 +22,50 @@ LineFollower::LineFollower(LineTracker& tracker, MecanumControl& control, Ultras
     baseSpeed = 0.5 * MAX_LINEAR_SPEED;   // 基础前进速度
     turnSpeed = 0.7 * MAX_ROTATION_SPEED; // 转向速度上限（提高默认转向力度）
     resetTuningToDefault();
-    obstacleRetreating = false;
-    obstacleRetreatStartTime = 0;
     lastObstacleMeasureTime = 0;
     lastObstacleDistance = 400.0f;
     rightTurning = false;
     rightTurnArmed = true;
     rightTurnStartTime = 0;
     rightTurnStartYawDeg = 0.0f;
-    rightTurnTargetDeg = 90.0f;
+    rightTurnTargetDeg = 80.0f;// 右转目标角度（相对于起始方向）
     rightTurnStopDeg = 3.0f;
     rightTurnStopGyroDegPerSec = 8.0f;
     rightTurnTimeoutMs = 1400UL;
     rightTurnStableCount = 0;
+    rightTurnTriggerConfirmFrames = LF_RIGHT_TURN_TRIGGER_CONFIRM_FRAMES;
+    rightTurnTriggerCount = 0;
+    rightTurnCrossSuppressUntil = 0;
+    rightTurnDelayStartTime = 0;
+    rightTurnReacquiring = false;
+    rightTurnReacquireStartTime = 0;
+    rightTurnReacquireTimeoutMs = LF_RIGHT_TURN_REACQUIRE_TIMEOUT_MS;
+    rightTurnReacquireOmegaRatio = LF_RIGHT_TURN_REACQUIRE_OMEGA_RATIO;
+    rightTurnReacquireVxRatio = LF_RIGHT_TURN_REACQUIRE_VX_RATIO;
+    rightTurnReacquireLineConfirmFrames = LF_RIGHT_TURN_REACQUIRE_LINE_CONFIRM_FRAMES;
+    rightTurnReacquireLineConfirmCount = 0;
+
     postObstacleMode = false;
-    reverseFollowing = false;
-    garageMoving = false;
-    garageDone = false;
-    reverseFollowStartTime = 0;
-    garageMoveStartTime = 0;
-    obstacleRetreatMaxMs = LF_OBSTACLE_RETREAT_MAX_MS;
-    garageMoveMs = LF_GARAGE_MOVE_MS;
-    reverseFollowSpeedRatio = LF_REVERSE_FOLLOW_SPEED_RATIO;
-    reverseLostlineVyRatio = LF_REVERSE_LOSTLINE_VY_RATIO;
-    garageMoveVxRatio = LF_GARAGE_MOVE_VX_RATIO;
-    garageMoveVyRatio = LF_GARAGE_MOVE_VY_RATIO;
-    finishLineConfirmFrames = LF_FINISH_LINE_CONFIRM_FRAMES;
-    finishLineConfirmCount = 0;
+    postObstacleStage = PostObstacleStage::Idle;
+    postStageStartTime = 0;
+    postLockYawDeg = 0.0f;
+    postLockYawKp = LF_POST_LOCK_YAW_KP;
+    postLockYawMaxOmega = MAX_ROTATION_SPEED * LF_POST_LOCK_YAW_MAX_OMEGA_RATIO;
+    postRetreatMaxMs = LF_OBSTACLE_RETREAT_MAX_MS;
+    postRetreatBackVxRatio = LF_POST_RETREAT_BACK_VX_RATIO;
+    postRetreatLeftVyRatio = LF_POST_RETREAT_LEFT_VY_RATIO;
+    postReverseVxRatio = LF_POST_REVERSE_VX_RATIO;
+    postReverseVyGain = LF_POST_REVERSE_VY_GAIN;
+    postReverseVyMaxRatio = LF_POST_REVERSE_VY_MAX_RATIO;
+    postGarageMoveMs = LF_POST_GARAGE_MOVE_MS;
+    postGarageVxRatio = LF_POST_GARAGE_VX_RATIO;
+    postGarageVyRatio = LF_POST_GARAGE_VY_RATIO;
+    postFinishConfirmFrames = LF_POST_FINISH_LINE_CONFIRM_FRAMES;
+    postFinishConfirmCount = 0;
 }
 
 void LineFollower::start() {
     running = true;
-    obstacleRetreating = false;
-    obstacleRetreatStartTime = 0;
     lastObstacleMeasureTime = 0;
     lastObstacleDistance = 400.0f;
     rightTurning = false;
@@ -62,32 +73,39 @@ void LineFollower::start() {
     rightTurnStartTime = 0;
     rightTurnStartYawDeg = 0.0f;
     rightTurnStableCount = 0;
+    rightTurnTriggerCount = 0;
+    rightTurnCrossSuppressUntil = 0;
+    rightTurnDelayStartTime = 0;
+    rightTurnReacquiring = false;
+    rightTurnReacquireStartTime = 0;
+    rightTurnReacquireLineConfirmCount = 0;
+
     postObstacleMode = false;
-    reverseFollowing = false;
-    garageMoving = false;
-    garageDone = false;
-    reverseFollowStartTime = 0;
-    garageMoveStartTime = 0;
-    finishLineConfirmCount = 0;
+    postObstacleStage = PostObstacleStage::Idle;
+    postStageStartTime = 0;
+    postLockYawDeg = 0.0f;
+    postFinishConfirmCount = 0;
     Serial.println("Line Follower Started");
 }
 
 void LineFollower::stop() {
     running = false;
-    obstacleRetreating = false;
-    obstacleRetreatStartTime = 0;
     rightTurning = false;
     rightTurnArmed = true;
     rightTurnStartTime = 0;
     rightTurnStartYawDeg = 0.0f;
     rightTurnStableCount = 0;
+    rightTurnTriggerCount = 0;
+    rightTurnCrossSuppressUntil = 0;
+    rightTurnDelayStartTime = 0;
+    rightTurnReacquiring = false;
+    rightTurnReacquireStartTime = 0;
+    rightTurnReacquireLineConfirmCount = 0;
+
     postObstacleMode = false;
-    reverseFollowing = false;
-    garageMoving = false;
-    garageDone = false;
-    reverseFollowStartTime = 0;
-    garageMoveStartTime = 0;
-    finishLineConfirmCount = 0;
+    postObstacleStage = PostObstacleStage::Idle;
+    postStageStartTime = 0;
+    postFinishConfirmCount = 0;
     mecanumControl.setTargetVelocity(0, 0, 0);
     Serial.println("Line Follower Stopped");
 }
@@ -141,24 +159,54 @@ bool LineFollower::setTuning(const String& key, float value) {
         patternLargeSpeedRatio = constrain(value, 0.20f, 1.00f);
         return true;
     }
-    if (key == "rto") {
-        rightTurnOmegaRatio = constrain(value, 0.30f, 1.20f);
-        return true;
-    }
-    if (key == "rtm") {
-        rightTurn90Ms = (unsigned long)constrain(value, 200.0f, 2500.0f);
-        return true;
-    }
-    if (key == "odc") {
-        obstacleDistanceCm = constrain(value, 3.0f, 50.0f);
+    if (key == "rpd") {
+        rightTurnPreDelayMs = (unsigned long)constrain(value, 0.0f, 1200.0f);
         return true;
     }
     if (key == "orm") {
         obstacleRetreatMs = (unsigned long)constrain(value, 100.0f, 3000.0f);
+        if (obstacleRetreatMs > postRetreatMaxMs) {
+            postRetreatMaxMs = obstacleRetreatMs;
+        }
         return true;
     }
-    if (key == "omi") {
-        obstacleMeasureIntervalMs = (unsigned long)constrain(value, 20.0f, 1000.0f);
+    if (key == "orx") {
+        postRetreatMaxMs = (unsigned long)constrain(value, 300.0f, 6000.0f);
+        if (postRetreatMaxMs < obstacleRetreatMs) {
+            postRetreatMaxMs = obstacleRetreatMs;
+        }
+        return true;
+    }
+    if (key == "prb") {
+        postRetreatBackVxRatio = constrain(value, 0.10f, 1.50f);
+        return true;
+    }
+    if (key == "prl") {
+        postRetreatLeftVyRatio = constrain(value, 0.05f, 1.20f);
+        return true;
+    }
+    if (key == "prv") {
+        postReverseVxRatio = constrain(value, 0.10f, 1.50f);
+        return true;
+    }
+    if (key == "prg") {
+        postReverseVyGain = constrain(value, 0.05f, 1.50f);
+        return true;
+    }
+    if (key == "prm") {
+        postReverseVyMaxRatio = constrain(value, 0.05f, 1.00f);
+        return true;
+    }
+    if (key == "pgm") {
+        postGarageMoveMs = (unsigned long)constrain(value, 300.0f, 8000.0f);
+        return true;
+    }
+    if (key == "pgx") {
+        postGarageVxRatio = constrain(value, 0.10f, 1.20f);
+        return true;
+    }
+    if (key == "pgy") {
+        postGarageVyRatio = constrain(value, 0.10f, 1.20f);
         return true;
     }
 
@@ -174,9 +222,23 @@ void LineFollower::resetTuningToDefault() {
     patternLargeSpeedRatio = LF_PATTERN_LARGE_SPEED_RATIO;
     rightTurnOmegaRatio = LF_RIGHT_TURN_OMEGA_RATIO;
     rightTurn90Ms = LF_RIGHT_TURN_90_MS;
+    rightTurnPreDelayMs = LF_RIGHT_TURN_PRE_DELAY_MS;
     obstacleDistanceCm = LF_OBSTACLE_DISTANCE_CM;
     obstacleRetreatMs = LF_OBSTACLE_RETREAT_MS;
     obstacleMeasureIntervalMs = LF_OBSTACLE_MEASURE_INTERVAL_MS;
+
+    postRetreatMaxMs = LF_OBSTACLE_RETREAT_MAX_MS;
+    if (postRetreatMaxMs < obstacleRetreatMs) {
+        postRetreatMaxMs = obstacleRetreatMs;
+    }
+    postRetreatBackVxRatio = LF_POST_RETREAT_BACK_VX_RATIO;
+    postRetreatLeftVyRatio = LF_POST_RETREAT_LEFT_VY_RATIO;
+    postReverseVxRatio = LF_POST_REVERSE_VX_RATIO;
+    postReverseVyGain = LF_POST_REVERSE_VY_GAIN;
+    postReverseVyMaxRatio = LF_POST_REVERSE_VY_MAX_RATIO;
+    postGarageMoveMs = LF_POST_GARAGE_MOVE_MS;
+    postGarageVxRatio = LF_POST_GARAGE_VX_RATIO;
+    postGarageVyRatio = LF_POST_GARAGE_VY_RATIO;
 }
 
 String LineFollower::getTuningJson() const {
@@ -187,11 +249,17 @@ String LineFollower::getTuningJson() const {
     json += "\"pss\":" + String(patternSlightSpeedRatio, 3) + ",";
     json += "\"pms\":" + String(patternMediumSpeedRatio, 3) + ",";
     json += "\"pls\":" + String(patternLargeSpeedRatio, 3) + ",";
-    json += "\"rto\":" + String(rightTurnOmegaRatio, 3) + ",";
-    json += "\"rtm\":" + String(rightTurn90Ms) + ",";
-    json += "\"odc\":" + String(obstacleDistanceCm, 2) + ",";
+    json += "\"rpd\":" + String(rightTurnPreDelayMs) + ",";
     json += "\"orm\":" + String(obstacleRetreatMs) + ",";
-    json += "\"omi\":" + String(obstacleMeasureIntervalMs);
+    json += "\"orx\":" + String(postRetreatMaxMs) + ",";
+    json += "\"prb\":" + String(postRetreatBackVxRatio, 3) + ",";
+    json += "\"prl\":" + String(postRetreatLeftVyRatio, 3) + ",";
+    json += "\"prv\":" + String(postReverseVxRatio, 3) + ",";
+    json += "\"prg\":" + String(postReverseVyGain, 3) + ",";
+    json += "\"prm\":" + String(postReverseVyMaxRatio, 3) + ",";
+    json += "\"pgm\":" + String(postGarageMoveMs) + ",";
+    json += "\"pgx\":" + String(postGarageVxRatio, 3) + ",";
+    json += "\"pgy\":" + String(postGarageVyRatio, 3);
     json += "}";
     return json;
 }
@@ -235,6 +303,12 @@ void LineFollower::startRightTurnByImu(unsigned long now) {
     rightTurnArmed = false;
     rightTurnStartTime = now;
     rightTurnStableCount = 0;
+    rightTurnTriggerCount = 0;
+    rightTurnCrossSuppressUntil = 0;
+    rightTurnDelayStartTime = 0;
+    rightTurnReacquiring = false;
+    rightTurnReacquireStartTime = 0;
+    rightTurnReacquireLineConfirmCount = 0;
 
     if (imu != nullptr) {
         imu->update();
@@ -245,6 +319,39 @@ void LineFollower::startRightTurnByImu(unsigned long now) {
 }
 
 bool LineFollower::updateRightTurnByImu(unsigned long now) {
+    if (rightTurnReacquiring) {
+        uint8_t state = lineTracker.getState();
+        bool s2 = (state >> 1) & 1;
+        bool s3 = (state >> 2) & 1;
+        bool centerLineFound = (!s2) || (!s3);
+
+        if (centerLineFound) {
+            if (rightTurnReacquireLineConfirmCount < rightTurnReacquireLineConfirmFrames) {
+                rightTurnReacquireLineConfirmCount++;
+            }
+        } else {
+            rightTurnReacquireLineConfirmCount = 0;
+        }
+
+        if (rightTurnReacquireLineConfirmCount >= rightTurnReacquireLineConfirmFrames) {
+            rightTurnReacquiring = false;
+            rightTurnReacquireLineConfirmCount = 0;
+            return true;
+        }
+
+        if (now - rightTurnReacquireStartTime >= rightTurnReacquireTimeoutMs) {
+            rightTurnReacquiring = false;
+            rightTurnReacquireLineConfirmCount = 0;
+            return true;
+        }
+
+        float omegaCmd = -turnSpeed * rightTurnReacquireOmegaRatio;
+        omegaCmd = constrain(omegaCmd, -MAX_ROTATION_SPEED, MAX_ROTATION_SPEED);
+        float vxCmd = baseSpeed * rightTurnReacquireVxRatio;
+        mecanumControl.setTargetVelocity(vxCmd, 0, omegaCmd);
+        return false;
+    }
+
     if (imu == nullptr) {
         if (now - rightTurnStartTime < rightTurn90Ms) {
             float turnOmega = -turnSpeed * rightTurnOmegaRatio;
@@ -252,7 +359,10 @@ bool LineFollower::updateRightTurnByImu(unsigned long now) {
             mecanumControl.setTargetVelocity(0, 0, turnOmega);
             return false;
         }
-        return true;
+        rightTurnReacquiring = true;
+        rightTurnReacquireStartTime = now;
+        rightTurnReacquireLineConfirmCount = 0;
+        return false;
     }
 
     imu->update();
@@ -282,7 +392,11 @@ bool LineFollower::updateRightTurnByImu(unsigned long now) {
     }
 
     if (rightTurnStableCount >= 3) {
-        return true;
+        rightTurnReacquiring = true;
+        rightTurnReacquireStartTime = now;
+        rightTurnReacquireLineConfirmCount = 0;
+        rightTurnStableCount = 0;
+        return false;
     }
 
     if (now - rightTurnStartTime >= rightTurnTimeoutMs) {
@@ -296,69 +410,6 @@ void LineFollower::update() {
     if (!running) return;
 
     unsigned long now = millis();
-
-    if (garageMoving) {
-        if (now - garageMoveStartTime < garageMoveMs) {
-            // 截止线后执行一次右前入库动作
-            float vxCmd = baseSpeed * garageMoveVxRatio;
-            float vyCmd = -baseSpeed * garageMoveVyRatio;
-            mecanumControl.setTargetVelocity(vxCmd, vyCmd, 0);
-            return;
-        }
-
-        garageMoving = false;
-        mecanumControl.setTargetVelocity(0, 0, 0);
-        running = false;
-        Serial.println("Line Follower Finished: Garage parked");
-        return;
-    }
-
-    // 巡线模式内置简易避障：遇障先左后退，再恢复巡线。
-    if (obstacleRetreating) {
-        mecanumControl.setTargetVelocity(-baseSpeed, baseSpeed * 2, 0);
-
-        unsigned long retreatElapsed = now - obstacleRetreatStartTime;
-        if (retreatElapsed < obstacleRetreatMs) {
-            return;
-        }
-
-        // 达到最短退避时长后，检测是否已经重新压到线；若过久仍未压线则兜底切换倒车巡线。
-        uint8_t retreatState = lineTracker.getState();
-        bool rs1 = (retreatState >> 0) & 1;
-        bool rs2 = (retreatState >> 1) & 1;
-        bool rs3 = (retreatState >> 2) & 1;
-        bool rs4 = (retreatState >> 3) & 1;
-        bool lineFound = (!rs1) || (!rs2) || (!rs3) || (!rs4);
-
-        if (lineFound || retreatElapsed >= obstacleRetreatMaxMs) {
-            obstacleRetreating = false;
-            reverseFollowing = true;
-            reverseFollowStartTime = now;
-            finishLineConfirmCount = 0;
-            lastObstacleDistance = 400.0f;
-            lastObstacleMeasureTime = 0;
-        }
-        return;
-    }
-
-    if (!postObstacleMode && isObstacleTooClose(now)) {
-        // 一旦遇到障碍，后续赛段将 0000 视作截止线入库触发。
-        postObstacleMode = true;
-        reverseFollowing = false;
-        rightTurning = false;
-        rightTurnArmed = false;
-        obstacleRetreating = true;
-        obstacleRetreatStartTime = now;
-        mecanumControl.setTargetVelocity(-baseSpeed, baseSpeed * 2, 0);
-        return;
-    }
-
-    if (rightTurning) {
-        if (!updateRightTurnByImu(now)) {
-            return;
-        }
-        rightTurning = false;
-    }
 
     uint8_t state = lineTracker.getState();
     // state bits(raw): bit3 bit2 bit1 bit0
@@ -380,28 +431,142 @@ void LineFollower::update() {
                       (s3 ? 0b0010 : 0) |
                       (s4 ? 0b0001 : 0);
 
-    if (postObstacleMode && reverseFollowing && !garageDone) {
-        if (pattern == 0b0000) {
-            if (finishLineConfirmCount < finishLineConfirmFrames) {
-                finishLineConfirmCount++;
-            }
-        } else {
-            finishLineConfirmCount = 0;
+    auto computePostLockOmega = [&]() -> float {
+        if (imu == nullptr) {
+            return 0.0f;
         }
 
-        if (finishLineConfirmCount >= finishLineConfirmFrames) {
-            garageDone = true;
-            garageMoving = true;
-            garageMoveStartTime = now;
-#if defined(LF_DEBUG_PATTERN) && LF_DEBUG_PATTERN
-            static unsigned long lastGarageLogTime = 0;
-            if (now - lastGarageLogTime > LF_DEBUG_PRINT_INTERVAL_MS) {
-                Serial.println("[LF] finish line detected after obstacle, move to garage");
-                lastGarageLogTime = now;
+        imu->update();
+        float yawError = wrapDeg180(postLockYawDeg - imu->getAngleZ());
+        if (fabs(yawError) < 1.0f) {
+            return 0.0f;
+        }
+
+        float omegaCmd = yawError * postLockYawKp;
+        return constrain(omegaCmd, -postLockYawMaxOmega, postLockYawMaxOmega);
+    };
+
+    if (!postObstacleMode && isObstacleTooClose(now)) {
+        // 触发后程模式：记录避障前航向并切换到左后退阶段。
+        postObstacleMode = true;
+        postObstacleStage = PostObstacleStage::Retreat;
+        postStageStartTime = now;
+        postFinishConfirmCount = 0;
+
+        rightTurning = false;
+        rightTurnArmed = false;
+        rightTurnDelayStartTime = 0;
+
+        if (imu != nullptr) {
+            imu->update();
+            postLockYawDeg = imu->getAngleZ();
+        } else {
+            postLockYawDeg = 0.0f;
+        }
+
+        lastObstacleDistance = 400.0f;
+        lastObstacleMeasureTime = 0;
+    }
+
+    if (postObstacleMode) {
+        float lockOmegaCmd = computePostLockOmega();
+
+        switch (postObstacleStage) {
+            case PostObstacleStage::Retreat: {
+                float vxCmd = -baseSpeed * postRetreatBackVxRatio;
+                float vyCmd = baseSpeed * postRetreatLeftVyRatio;
+                mecanumControl.setTargetVelocity(vxCmd, vyCmd, lockOmegaCmd);
+
+                unsigned long stageElapsed = now - postStageStartTime;
+                bool lineFound = (pattern != 0b1111);
+                if ((stageElapsed >= obstacleRetreatMs && lineFound) ||
+                    stageElapsed >= postRetreatMaxMs) {
+                    postObstacleStage = PostObstacleStage::ReverseTrack;
+                    postStageStartTime = now;
+                    postFinishConfirmCount = 0;
+                }
+                return;
             }
-#endif
+
+            case PostObstacleStage::ReverseTrack: {
+                if (pattern == 0b0000) {
+                    if (postFinishConfirmCount < postFinishConfirmFrames) {
+                        postFinishConfirmCount++;
+                    }
+                } else {
+                    postFinishConfirmCount = 0;
+                }
+
+                if (postFinishConfirmCount >= postFinishConfirmFrames) {
+                    postObstacleStage = PostObstacleStage::GarageMove;
+                    postStageStartTime = now;
+                    return;
+                }
+
+                float vxCmd = -baseSpeed * postReverseVxRatio;
+                float vyCmd = 0.0f;
+                int activeCount = (l1 ? 1 : 0) + (l2 ? 1 : 0) + (l3 ? 1 : 0) + (l4 ? 1 : 0);
+
+                if (activeCount > 0) {
+                    float errorSum = 0.0f;
+                    if (l1) errorSum -= 3.0f;
+                    if (l2) errorSum -= 1.0f;
+                    if (l3) errorSum += 1.0f;
+                    if (l4) errorSum += 3.0f;
+
+                    float rawError = errorSum / activeCount;
+                    vyCmd = -rawError * (baseSpeed * postReverseVyGain);
+                    float vyLimit = baseSpeed * postReverseVyMaxRatio;
+                    vyCmd = constrain(vyCmd, -vyLimit, vyLimit);
+                }
+
+                mecanumControl.setTargetVelocity(vxCmd, vyCmd, lockOmegaCmd);
+                return;
+            }
+
+            case PostObstacleStage::GarageMove: {
+                if (now - postStageStartTime < postGarageMoveMs) {
+                    float vxCmd = baseSpeed * postGarageVxRatio;
+                    float vyCmd = -baseSpeed * postGarageVyRatio;
+                    mecanumControl.setTargetVelocity(vxCmd, vyCmd, lockOmegaCmd);
+                    return;
+                }
+
+                mecanumControl.setTargetVelocity(0, 0, 0);
+                running = false;
+                postObstacleMode = false;
+                postObstacleStage = PostObstacleStage::Idle;
+                Serial.println("Line Follower Finished: Garage parked");
+                return;
+            }
+
+            default:
+                postObstacleMode = false;
+                postObstacleStage = PostObstacleStage::Idle;
+                break;
+        }
+    }
+
+    if (rightTurning) {
+        if (!updateRightTurnByImu(now)) {
             return;
         }
+        rightTurning = false;
+    }
+
+    if (rightTurnDelayStartTime != 0) {
+        if (now - rightTurnDelayStartTime < rightTurnPreDelayMs) {
+            float vxCmd = baseSpeed * LF_RIGHT_TURN_PRE_DELAY_VX_RATIO;
+            mecanumControl.setTargetVelocity(vxCmd, 0, 0);
+            return;
+        }
+
+        rightTurnDelayStartTime = 0;
+        startRightTurnByImu(now);
+        if (rightTurning) {
+            updateRightTurnByImu(now);
+        }
+        return;
     }
 
 #if defined(LF_DEBUG_PATTERN) && LF_DEBUG_PATTERN
@@ -429,18 +594,34 @@ void LineFollower::update() {
 #endif
 
     if (!postObstacleMode) {
-        if (pattern != 0b1000) {
+        if (pattern == 0b0000) {
+            // 十字路口阶段不允许立即触发右转，避免误判。
+            rightTurnArmed = false;
+            rightTurnTriggerCount = 0;
+            rightTurnDelayStartTime = 0;
+            rightTurnCrossSuppressUntil = now + LF_RIGHT_TURN_CROSS_SUPPRESS_MS;
+        } else if ((l2 || l3) && now >= rightTurnCrossSuppressUntil) {
+            // 回到中间传感器可见线后，重新使能右转触发。
             rightTurnArmed = true;
         }
 
-        if (pattern == 0b1000 && rightTurnArmed) {
-            startRightTurnByImu(now);
-#if defined(LF_DEBUG_PATTERN) && LF_DEBUG_PATTERN
-            logPatternDecision(1, "RIGHT_TURN_TRIGGER");
-#endif
-            if (rightTurning) {
-                updateRightTurnByImu(now);
+        if (now >= rightTurnCrossSuppressUntil && pattern == 0b1000 && rightTurnArmed) {
+            if (rightTurnTriggerCount < rightTurnTriggerConfirmFrames) {
+                rightTurnTriggerCount++;
             }
+        } else {
+            rightTurnTriggerCount = 0;
+        }
+
+        if (rightTurnTriggerCount >= rightTurnTriggerConfirmFrames) {
+            rightTurnTriggerCount = 0;
+            rightTurnArmed = false;
+            rightTurnDelayStartTime = now;
+#if defined(LF_DEBUG_PATTERN) && LF_DEBUG_PATTERN
+            logPatternDecision(1, "RIGHT_TURN_PENDING");
+#endif
+            float vxCmd = baseSpeed * LF_RIGHT_TURN_PRE_DELAY_VX_RATIO;
+            mecanumControl.setTargetVelocity(vxCmd, 0, 0);
             return;
         }
     }
@@ -507,18 +688,12 @@ void LineFollower::update() {
     }
 
     if (mappedState) {
-        if (reverseFollowing) {
-            // 倒车巡线时，角速度方向取反以匹配后退运动学。
-            mappedOmega = -mappedOmega;
-        }
         if (mappedOmega > 0.0f) {
             mappedOmega *= LF_TURN_LEFT_GAIN;
         } else if (mappedOmega < 0.0f) {
             mappedOmega *= LF_TURN_RIGHT_GAIN;
         }
-        float vxSign = reverseFollowing ? -1.0f : 1.0f;
-        float speedScale = reverseFollowing ? reverseFollowSpeedRatio : 1.0f;
-        float vxCmd = vxSign * baseSpeed * mappedSpeedRatio * speedScale;
+        float vxCmd = baseSpeed * mappedSpeedRatio;
 #if defined(LF_DEBUG_PATTERN) && LF_DEBUG_PATTERN
         logPatternDecision(mappedDecision, mappedLabel);
 #endif
@@ -537,33 +712,17 @@ void LineFollower::update() {
 
         float rawError = errorSum / activeCount;
         float omegaCmd = -rawError * (turnSpeed / 3.0f);
-        if (reverseFollowing) {
-            omegaCmd = -omegaCmd;
-        }
         if (omegaCmd > 0.0f) {
             omegaCmd *= LF_TURN_LEFT_GAIN;
         } else if (omegaCmd < 0.0f) {
             omegaCmd *= LF_TURN_RIGHT_GAIN;
         }
         omegaCmd = constrain(omegaCmd, -turnSpeed, turnSpeed);
-        float vxSign = reverseFollowing ? -1.0f : 1.0f;
-        float speedScale = reverseFollowing ? reverseFollowSpeedRatio : 1.0f;
-        float vxCmd = vxSign * baseSpeed * patternMediumSpeedRatio * speedScale;
+        float vxCmd = baseSpeed * patternMediumSpeedRatio;
 #if defined(LF_DEBUG_PATTERN) && LF_DEBUG_PATTERN
         logPatternDecision(10, "FALLBACK");
 #endif
         mecanumControl.setTargetVelocity(vxCmd, 0, omegaCmd);
-        return;
-    }
-
-    if (reverseFollowing) {
-        // 倒车巡线阶段丢线时，继续左后退搜索以提高再压线概率。
-        float vxCmd = -baseSpeed * reverseFollowSpeedRatio;
-        float vyCmd = baseSpeed * reverseLostlineVyRatio;
-#if defined(LF_DEBUG_PATTERN) && LF_DEBUG_PATTERN
-        logPatternDecision(12, "REVERSE_LOSTLINE_SEARCH");
-#endif
-        mecanumControl.setTargetVelocity(vxCmd, vyCmd, 0);
         return;
     }
 

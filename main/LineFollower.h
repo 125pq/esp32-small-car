@@ -13,6 +13,13 @@
 #include "Ultrasonic.h"
 #include <MPU6050_tockn.h>
 
+enum class PostObstacleStage : uint8_t {
+    Idle = 0,
+    Retreat,
+    ReverseTrack,
+    GarageMove
+};
+
 class LineFollower {
 public:
     /**
@@ -97,13 +104,12 @@ private:
     float patternLargeSpeedRatio;
     float rightTurnOmegaRatio;
     unsigned long rightTurn90Ms;
+    unsigned long rightTurnPreDelayMs;
     float obstacleDistanceCm;
     unsigned long obstacleRetreatMs;
     unsigned long obstacleMeasureIntervalMs;
 
-    // 巡线内置遇障左后退状态
-    bool obstacleRetreating;
-    unsigned long obstacleRetreatStartTime;
+    // 巡线内置遇障检测缓存
     unsigned long lastObstacleMeasureTime;
     float lastObstacleDistance;
 
@@ -117,22 +123,36 @@ private:
     float rightTurnStopGyroDegPerSec;
     unsigned long rightTurnTimeoutMs;
     uint8_t rightTurnStableCount;
+    uint8_t rightTurnTriggerConfirmFrames;
+    uint8_t rightTurnTriggerCount;
+    unsigned long rightTurnCrossSuppressUntil;
+    unsigned long rightTurnDelayStartTime;
+    bool rightTurnReacquiring;
+    unsigned long rightTurnReacquireStartTime;
+    unsigned long rightTurnReacquireTimeoutMs;
+    float rightTurnReacquireOmegaRatio;
+    float rightTurnReacquireVxRatio;
+    uint8_t rightTurnReacquireLineConfirmFrames;
+    uint8_t rightTurnReacquireLineConfirmCount;
 
-    // 避障后的赛道后半段逻辑：0000 由十字直行改为截止线入库
+    // 避障后的赛道后半段逻辑（锁定航向 + 纯xy）
     bool postObstacleMode;
-    bool reverseFollowing;
-    bool garageMoving;
-    bool garageDone;
-    unsigned long reverseFollowStartTime;
-    unsigned long garageMoveStartTime;
-    unsigned long obstacleRetreatMaxMs;
-    unsigned long garageMoveMs;
-    float reverseFollowSpeedRatio;
-    float reverseLostlineVyRatio;
-    float garageMoveVxRatio;
-    float garageMoveVyRatio;
-    uint8_t finishLineConfirmFrames;
-    uint8_t finishLineConfirmCount;
+    PostObstacleStage postObstacleStage;
+    unsigned long postStageStartTime;
+    float postLockYawDeg;
+    float postLockYawKp;
+    float postLockYawMaxOmega;
+    unsigned long postRetreatMaxMs;
+    float postRetreatBackVxRatio;
+    float postRetreatLeftVyRatio;
+    float postReverseVxRatio;
+    float postReverseVyGain;
+    float postReverseVyMaxRatio;
+    unsigned long postGarageMoveMs;
+    float postGarageVxRatio;
+    float postGarageVyRatio;
+    uint8_t postFinishConfirmFrames;
+    uint8_t postFinishConfirmCount;
 
     static float wrapDeg180(float deg);
     void startRightTurnByImu(unsigned long now);

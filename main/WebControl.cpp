@@ -227,11 +227,17 @@ String WebControl::generateHTML() {
     html += "<div class='param'><label>Slight Speed Ratio: <span id='v_pss'>0</span></label><input type='range' id='p_pss' class='slider' min='0.30' max='1.00' step='0.01' oninput=\"updateParam('pss','p_pss','v_pss')\"></div>";
     html += "<div class='param'><label>Medium Speed Ratio: <span id='v_pms'>0</span></label><input type='range' id='p_pms' class='slider' min='0.30' max='1.00' step='0.01' oninput=\"updateParam('pms','p_pms','v_pms')\"></div>";
     html += "<div class='param'><label>Large Speed Ratio: <span id='v_pls'>0</span></label><input type='range' id='p_pls' class='slider' min='0.20' max='1.00' step='0.01' oninput=\"updateParam('pls','p_pls','v_pls')\"></div>";
-    html += "<div class='param'><label>Right Turn Omega Ratio: <span id='v_rto'>0</span></label><input type='range' id='p_rto' class='slider' min='0.30' max='1.20' step='0.01' oninput=\"updateParam('rto','p_rto','v_rto')\"></div>";
-    html += "<div class='param'><label>Right Turn 90ms: <span id='v_rtm'>0</span></label><input type='range' id='p_rtm' class='slider' min='200' max='2500' step='10' oninput=\"updateParam('rtm','p_rtm','v_rtm')\"></div>";
-    html += "<div class='param'><label>Obstacle Distance (cm): <span id='v_odc'>0</span></label><input type='range' id='p_odc' class='slider' min='3' max='50' step='0.5' oninput=\"updateParam('odc','p_odc','v_odc')\"></div>";
+    html += "<div class='param'><label>Right Turn Pre Delay (ms): <span id='v_rpd'>0</span></label><input type='range' id='p_rpd' class='slider' min='0' max='1200' step='10' oninput=\"updateParam('rpd','p_rpd','v_rpd')\"></div>";
     html += "<div class='param'><label>Obstacle Retreat (ms): <span id='v_orm'>0</span></label><input type='range' id='p_orm' class='slider' min='100' max='3000' step='10' oninput=\"updateParam('orm','p_orm','v_orm')\"></div>";
-    html += "<div class='param'><label>Obstacle Measure Interval (ms): <span id='v_omi'>0</span></label><input type='range' id='p_omi' class='slider' min='20' max='1000' step='10' oninput=\"updateParam('omi','p_omi','v_omi')\"></div>";
+    html += "<div class='param'><label>Obstacle Retreat Max (ms): <span id='v_orx'>0</span></label><input type='range' id='p_orx' class='slider' min='300' max='6000' step='10' oninput=\"updateParam('orx','p_orx','v_orx')\"></div>";
+    html += "<div class='param'><label>Post Retreat Back Vx Ratio: <span id='v_prb'>0</span></label><input type='range' id='p_prb' class='slider' min='0.10' max='1.50' step='0.01' oninput=\"updateParam('prb','p_prb','v_prb')\"></div>";
+    html += "<div class='param'><label>Post Retreat Left Vy Ratio: <span id='v_prl'>0</span></label><input type='range' id='p_prl' class='slider' min='0.05' max='1.20' step='0.01' oninput=\"updateParam('prl','p_prl','v_prl')\"></div>";
+    html += "<div class='param'><label>Post Reverse Vx Ratio: <span id='v_prv'>0</span></label><input type='range' id='p_prv' class='slider' min='0.10' max='1.50' step='0.01' oninput=\"updateParam('prv','p_prv','v_prv')\"></div>";
+    html += "<div class='param'><label>Post Reverse Vy Gain: <span id='v_prg'>0</span></label><input type='range' id='p_prg' class='slider' min='0.05' max='1.50' step='0.01' oninput=\"updateParam('prg','p_prg','v_prg')\"></div>";
+    html += "<div class='param'><label>Post Reverse Vy Max Ratio: <span id='v_prm'>0</span></label><input type='range' id='p_prm' class='slider' min='0.05' max='1.00' step='0.01' oninput=\"updateParam('prm','p_prm','v_prm')\"></div>";
+    html += "<div class='param'><label>Post Garage Move (ms): <span id='v_pgm'>0</span></label><input type='range' id='p_pgm' class='slider' min='300' max='8000' step='10' oninput=\"updateParam('pgm','p_pgm','v_pgm')\"></div>";
+    html += "<div class='param'><label>Post Garage Vx Ratio: <span id='v_pgx'>0</span></label><input type='range' id='p_pgx' class='slider' min='0.10' max='1.20' step='0.01' oninput=\"updateParam('pgx','p_pgx','v_pgx')\"></div>";
+    html += "<div class='param'><label>Post Garage Vy Ratio: <span id='v_pgy'>0</span></label><input type='range' id='p_pgy' class='slider' min='0.10' max='1.20' step='0.01' oninput=\"updateParam('pgy','p_pgy','v_pgy')\"></div>";
     html += "<button class='smallbtn' onclick='resetLineParams()'>Reset Line Params</button></div>";
     
     html += "<script>";
