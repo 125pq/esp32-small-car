@@ -88,7 +88,7 @@ private:
      */
     String generateHTML();
 
-    float currentSpeed = 0.5; // 当前速度设定
+    float currentSpeed = 0.4; // 当前速度设定
 };
 
 #endif // WEBCONTROL_H

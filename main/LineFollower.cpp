@@ -22,6 +22,7 @@ LineFollower::LineFollower(LineTracker& tracker, MecanumControl& control, Ultras
     baseSpeed = 0.5 * MAX_LINEAR_SPEED;   // 基础前进速度
     turnSpeed = 0.7 * MAX_ROTATION_SPEED; // 转向速度上限（提高默认转向力度）
     resetTuningToDefault();
+    lineStartTime = 0;
     lastObstacleMeasureTime = 0;
     lastObstacleDistance = 400.0f;
     rightTurning = false;
@@ -67,6 +68,7 @@ LineFollower::LineFollower(LineTracker& tracker, MecanumControl& control, Ultras
 
 void LineFollower::start() {
     running = true;
+    lineStartTime = millis();
     lastObstacleMeasureTime = 0;
     lastObstacleDistance = 400.0f;
     rightTurning = false;
@@ -160,6 +162,14 @@ bool LineFollower::setTuning(const String& key, float value) {
         patternLargeSpeedRatio = constrain(value, 0.20f, 1.00f);
         return true;
     }
+    if (key == "sbd") {
+        startBoostMs = (unsigned long)constrain(value, 0.0f, 5000.0f);
+        return true;
+    }
+    if (key == "sbr") {
+        startBoostRatio = constrain(value, 1.00f, 2.00f);
+        return true;
+    }
     if (key == "rpd") {
         rightTurnPreDelayMs = (unsigned long)constrain(value, 0.0f, 1200.0f);
         return true;
@@ -225,6 +235,8 @@ void LineFollower::resetTuningToDefault() {
     patternSlightSpeedRatio = LF_PATTERN_SLIGHT_SPEED_RATIO;
     patternMediumSpeedRatio = LF_PATTERN_MEDIUM_SPEED_RATIO;
     patternLargeSpeedRatio = LF_PATTERN_LARGE_SPEED_RATIO;
+    startBoostMs = LF_START_BOOST_MS;
+    startBoostRatio = LF_START_BOOST_RATIO;
     rightTurnOmegaRatio = LF_RIGHT_TURN_OMEGA_RATIO;
     rightTurn90Ms = LF_RIGHT_TURN_90_MS;
     rightTurnPreDelayMs = LF_RIGHT_TURN_PRE_DELAY_MS;
@@ -255,6 +267,8 @@ String LineFollower::getTuningJson() const {
     json += "\"pss\":" + String(patternSlightSpeedRatio, 3) + ",";
     json += "\"pms\":" + String(patternMediumSpeedRatio, 3) + ",";
     json += "\"pls\":" + String(patternLargeSpeedRatio, 3) + ",";
+    json += "\"sbd\":" + String(startBoostMs) + ",";
+    json += "\"sbr\":" + String(startBoostRatio, 3) + ",";
     json += "\"rpd\":" + String(rightTurnPreDelayMs) + ",";
     json += "\"orm\":" + String(obstacleRetreatMs) + ",";
     json += "\"orx\":" + String(postRetreatMaxMs) + ",";
@@ -417,6 +431,10 @@ void LineFollower::update() {
     if (!running) return;
 
     unsigned long now = millis();
+    float effectiveBaseSpeed = baseSpeed;
+    if (startBoostMs > 0UL && now - lineStartTime < startBoostMs) {
+        effectiveBaseSpeed = constrain(baseSpeed * startBoostRatio, 0.0f, MAX_LINEAR_SPEED);
+    }
 
     uint8_t state = lineTracker.getState();
     // state bits(raw): bit3 bit2 bit1 bit0
@@ -488,8 +506,8 @@ void LineFollower::update() {
 
         switch (postObstacleStage) {
             case PostObstacleStage::Retreat: {
-                float vxCmd = -baseSpeed * postRetreatBackVxRatio;
-                float vyCmd = baseSpeed * postRetreatLeftVyRatio;
+                float vxCmd = -effectiveBaseSpeed * postRetreatBackVxRatio;
+                float vyCmd = effectiveBaseSpeed * postRetreatLeftVyRatio;
                 mecanumControl.setTargetVelocity(vxCmd, vyCmd, lockOmegaCmd);
 
                 unsigned long stageElapsed = now - postStageStartTime;
@@ -520,7 +538,7 @@ void LineFollower::update() {
                     return;
                 }
 
-                float vxCmd = -baseSpeed * postReverseVxRatio;
+                float vxCmd = -effectiveBaseSpeed * postReverseVxRatio;
                 float vyCmd = 0.0f;
                 int activeCount = (l1 ? 1 : 0) + (l2 ? 1 : 0) + (l3 ? 1 : 0) + (l4 ? 1 : 0);
 
@@ -532,14 +550,14 @@ void LineFollower::update() {
                     if (l4) errorSum += 3.0f;
 
                     float rawError = errorSum / activeCount;
-                    vyCmd = -rawError * (baseSpeed * postReverseVyGain);
-                    float vyLimit = baseSpeed * postReverseVyMaxRatio;
+                    vyCmd = -rawError * (effectiveBaseSpeed * postReverseVyGain);
+                    float vyLimit = effectiveBaseSpeed * postReverseVyMaxRatio;
                     vyCmd = constrain(vyCmd, -vyLimit, vyLimit);
                 }
 
                 float blend = blendByStageElapsed(stageElapsed);
-                float retreatVx = -baseSpeed * postRetreatBackVxRatio;
-                float retreatVy = baseSpeed * postRetreatLeftVyRatio;
+                float retreatVx = -effectiveBaseSpeed * postRetreatBackVxRatio;
+                float retreatVy = effectiveBaseSpeed * postRetreatLeftVyRatio;
                 vxCmd = retreatVx + (vxCmd - retreatVx) * blend;
                 vyCmd = retreatVy + (vyCmd - retreatVy) * blend;
 
@@ -550,11 +568,11 @@ void LineFollower::update() {
             case PostObstacleStage::GarageMove: {
                 unsigned long stageElapsed = now - postStageStartTime;
                 if (stageElapsed < postGarageMoveMs) {
-                    float targetVx = baseSpeed * postGarageVxRatio;
-                    float targetVy = -baseSpeed * postGarageVyRatio;
+                    float targetVx = effectiveBaseSpeed * postGarageVxRatio;
+                    float targetVy = -effectiveBaseSpeed * postGarageVyRatio;
 
                     float blend = blendByStageElapsed(stageElapsed);
-                    float reverseVx = -baseSpeed * postReverseVxRatio;
+                    float reverseVx = -effectiveBaseSpeed * postReverseVxRatio;
                     float reverseVy = 0.0f;
                     float vxCmd = reverseVx + (targetVx - reverseVx) * blend;
                     float vyCmd = reverseVy + (targetVy - reverseVy) * blend;
@@ -587,7 +605,7 @@ void LineFollower::update() {
 
     if (rightTurnDelayStartTime != 0) {
         if (now - rightTurnDelayStartTime < rightTurnPreDelayMs) {
-            float vxCmd = baseSpeed * LF_RIGHT_TURN_PRE_DELAY_VX_RATIO;
+            float vxCmd = effectiveBaseSpeed * LF_RIGHT_TURN_PRE_DELAY_VX_RATIO;
             mecanumControl.setTargetVelocity(vxCmd, 0, 0);
             return;
         }
@@ -651,7 +669,7 @@ void LineFollower::update() {
 #if defined(LF_DEBUG_PATTERN) && LF_DEBUG_PATTERN
             logPatternDecision(1, "RIGHT_TURN_PENDING");
 #endif
-            float vxCmd = baseSpeed * LF_RIGHT_TURN_PRE_DELAY_VX_RATIO;
+            float vxCmd = effectiveBaseSpeed * LF_RIGHT_TURN_PRE_DELAY_VX_RATIO;
             mecanumControl.setTargetVelocity(vxCmd, 0, 0);
             return;
         }
@@ -724,7 +742,7 @@ void LineFollower::update() {
         } else if (mappedOmega < 0.0f) {
             mappedOmega *= LF_TURN_RIGHT_GAIN;
         }
-        float vxCmd = baseSpeed * mappedSpeedRatio;
+        float vxCmd = effectiveBaseSpeed * mappedSpeedRatio;
 #if defined(LF_DEBUG_PATTERN) && LF_DEBUG_PATTERN
         logPatternDecision(mappedDecision, mappedLabel);
 #endif
@@ -749,7 +767,7 @@ void LineFollower::update() {
             omegaCmd *= LF_TURN_RIGHT_GAIN;
         }
         omegaCmd = constrain(omegaCmd, -turnSpeed, turnSpeed);
-        float vxCmd = baseSpeed * patternMediumSpeedRatio;
+        float vxCmd = effectiveBaseSpeed * patternMediumSpeedRatio;
 #if defined(LF_DEBUG_PATTERN) && LF_DEBUG_PATTERN
         logPatternDecision(10, "FALLBACK");
 #endif

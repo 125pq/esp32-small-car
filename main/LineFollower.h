@@ -108,6 +108,11 @@ private:
     float obstacleDistanceCm;
     unsigned long obstacleRetreatMs;
     unsigned long obstacleMeasureIntervalMs;
+    unsigned long startBoostMs;
+    float startBoostRatio;
+
+    // 巡线启动加速状态
+    unsigned long lineStartTime;
 
     // 巡线内置遇障检测缓存
     unsigned long lastObstacleMeasureTime;

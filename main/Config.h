@@ -79,8 +79,10 @@
 #define LF_PATTERN_SLIGHT_SPEED_RATIO 0.92f  // 轻微偏移前进速度比例
 #define LF_PATTERN_MEDIUM_SPEED_RATIO 0.80f  // 中等偏移前进速度比例
 #define LF_PATTERN_LARGE_SPEED_RATIO 0.65f   // 大偏移前进速度比例
+#define LF_START_BOOST_MS 4000UL             // 巡线启动加速持续时长 (ms)
+#define LF_START_BOOST_RATIO 1.35f           // 巡线启动加速倍率（相对Web速度）
 #define LF_RIGHT_TURN_OMEGA_RATIO 6.0f      // 右转路口旋转速度比例
-#define LF_RIGHT_TURN_90_MS 850UL            // 右转90度动作时长 (ms)
+#define LF_RIGHT_TURN_90_MS 2000UL            // 右转90度动作时长 (ms)
 #define LF_RIGHT_TURN_TRIGGER_CONFIRM_FRAMES 10U // 右转触发连续确认帧数，抑制十字路口误触发
 #define LF_RIGHT_TURN_CROSS_SUPPRESS_MS 50UL // 十字路口后短时禁止右转触发，避免误判
 #define LF_RIGHT_TURN_REACQUIRE_TIMEOUT_MS 500UL // 右转后回线确认阶段最长时长 (ms)
